@@ -1,0 +1,535 @@
+#!/usr/bin/perl
+
+#--------------------------------------------------------------------------------------------------------------------------
+# This program calls the following six programs in succession for a full genome scan
+#--------------------------------------------------------------------------------------------------------------------------
+# Program Name			Input Arguments							Needed in this program
+#--------------------------------------------------------------------------------------------------------------------------
+#[1] autoparseunique.pl
+#				- Input file with only sequences to be parsed				N
+#				- Number of bases to force pair at the ends				default = 3
+#				- Lowest length allowed							default = 60
+#				- Highest length allowed						default = 114
+#
+# [2] newcyk2
+#				- Input file with only sequences to be run through the grammar		N
+#				- Input probability file name						N
+#				- Output result filename						N
+#
+# [3] cutoffpassscore
+#				- Input filename with sequences and scores				N
+#				- Cutoff grammar score							default = -0.609999
+#				- Output filename							N
+#
+# [4] findlocus.pl
+#				- Input filename from CutOff selector					N
+#				- Source fasta format filename						N
+#				- Output filename							N
+# [5] orderpos.pl
+#				- Input filename with unordered positions				N
+#
+# [6] remove_overlap
+#				- Input filename with overlaps						N
+#				- Output filename without overlaps					N
+# [7] convert2fasta.pl
+#				- Input filename in the final results format				N
+#
+# [8] grammar2rfold.pl
+#				- Input filename in the final results format				N
+#
+# [9] RNA2fold
+#				- Some parameters							N (supplied here)
+#				- Input filename with sequences and structural constraints		N
+#
+# [10] gawk
+#				- Some parameters							N
+#				- Input filename with the Rfold structures				N
+#
+# [11] mergeLoops.pl
+#				- Input filename with the Rfold structures				N
+#
+# [12] vienna2struct
+#				- Input filename with the Rfold structures (merged loops)		N
+#				- Output filename for storing the drawn structures			N
+#
+# [13] Scores4mStruct
+#				- Input filename with the drawn structures				N
+#				- Output filename for storing the scores				N
+#
+# [14] StructScorePass
+#				- Input filename with the scores and structures				N
+#				- Output filename for storing the final results				N
+#
+#--------------------------------------------------------------------------------------------------------------------------
+
+
+#Define feedback() function for webrouter
+sub feedback
+    {
+    $fbmsg = $_[0];
+#    $fbmsg =~ s/^\s+//g;
+#    $fbmsg =~ s/\s+.//g;
+    $fbmsg = "FEEDBACK: ".$fbmsg;
+                                                                                                                             
+    if (length($fbmsg) > 0)
+       {
+       open FBFILE,">$InputCoreFilename.final.fasta";
+       print FBFILE $fbmsg."\n";
+       close FBFILE;
+       exit(0);
+       }
+    }
+
+#Done defining function
+
+$BeginTime = time();
+$InputProbFile = "CFGprobs.txt";
+
+
+#Program
+$pgm = $0;
+#Check for input arguments
+$ARGC = scalar(@ARGV);
+$Argument1 = $ARGV[0];
+if ($Argument1 eq "--help" || $ARGC == 0)
+   {#If help sought, or no argument supplied
+
+print <<PRINTHELP;
+
+SYNTAX
+perl $pgm --help
+perl $pgm [options] <Input fasta format filename (with continuous sequences)>
+
+
+OPTIONS
+FWL:<number>		Fixed window length to scan with					default = 125
+UDG:<number>		Upper dG cutoff value							default = -13.559
+SSZ:<number>		Step size to use for shifting window					default = 10
+BFP:<number>		Number of bases to force pair at the ends				default = 3
+LLN:<number>		Lowest length allowed                                                 	default = 60
+HLN:<number>		Highest length allowed							default = 114
+CGS:<number>		Cutoff grammar score                                                  	default = -0.609999
+LFILE:<filename>	Name of the file within which the loci need to be located		default = <Input file name>
+CSS:<number>		Cutoff structural score							default = 23
+MAIL:<e-mail address>	To send results to the user by e-mail
+RUNID:<query id>	To send the link to the results
+
+ATTENTION
+This program does not tolerate spaces in between the OPTIONS. Also, the [options] are case-sensitive.
+Arguments like
+		FWL :75
+		FWL: 75
+		FWL: 7 5
+		fwl:75
+will simply be ignored.
+
+PRINTHELP
+
+exit;
+   }# print help
+
+#Specify default values
+$NoMfold = 1;#false
+$FWL = 125;
+$UDG = -13.559;
+$SSZ = 10;
+$BFP = 3;
+$LLN = 60;
+$HLN = 114;
+$CGS = -0.609999;
+$CSS = 23;
+$MAIL = "";
+$RunID = "";
+
+#Extract input argument values and store them to variables
+use Switch;
+$InpFileName = $ARGV[$ARGC-1];
+
+$LFILE=$InpFileName;
+print "File:$LFILE\n";
+for ($c=0 ; $c < $ARGC-1; $c++)
+    {# Run through each argument
+    if ($ARGV[$c] =~ /\:/)
+       {
+       $option = $`;# before the match
+       $value = $'; # after the match
+
+       if ((length($value) == 0 || $value*1 == 0) && $option ne "LFILE" && $option ne "MAIL" && $option ne "RUNID") {next;} #If the value is blank or a string not convertible to numeric form
+
+       if (length($value) == 0 && ($option eq "LFILE" || $option eq "MAIL" || $option eq "RUNID")) {next;}
+print "OK...check the options now\n";
+       switch ($option)
+              {
+              case "LFILE"
+                   {
+                   $LFILE = $value;
+#                   if (! ((-s $LFILE) && (-r $LFILE)) ){
+#                      print STDERR "\nERROR!!! The locus file \"$LFILE\" either does not exist or is not readable.\nUsing the input file \"$InpFileName\" for determining loci.\n\n";
+#                      $LFILE = $InpFileName;}
+                   }
+              case "MAIL"
+                   {
+                   $MAIL = $value;
+                   }
+              case "RUNID"
+                   {
+                   $RunID = $value;
+                   }
+              case "FWL"
+                   {
+                   $FWL = $value;
+                   }
+              case "UDG"
+                   {
+                   $UDG = $value;
+                   }
+              case "SSZ"
+                   {
+                   $SSZ = $value;
+                   }
+              case "BFP"
+                   {
+                   $BFP = $value;
+                   }
+              case "LLN"
+                   {
+                   $LLN = $value;
+                   }
+              case "HLN"
+                   {
+                   $HLN = $value;
+                   }
+              case "CGS"
+                   {
+                   $CGS = $value;
+                   }
+              case "CSS"
+                   {
+                   $CSS = $value;
+                   }
+              }# switch-case
+
+              if ($option eq "LFILE" && !((-s $LFILE) && (-r $LFILE)) )
+                 {
+                 print STDERR "\nERROR!!! The locus file \"$LFILE\" either does not exist or is not readable.\nUsing the input file \"$InpFileName\" for determining loci.\n\n";
+                 $LFILE = $InpFileName;
+                 }
+
+       }# If argument has ':'
+    else
+       {#No ':' found in argument
+       if ($ARGV[$c] eq "NOMFOLD") {$NoMfold = 1;}#true
+       }
+    }# End run through each argument
+
+
+
+#Make $InputCoreFilename
+$InputCoreFilename = $InpFileName;
+print "$InpFileName\n";
+#$rpos = rindex $InpFileName,"\.";
+#if ($rpos != -1) {$InputCoreFilename=substr($InputCoreFilename,0,$rpos);}
+
+#Now chain programs
+
+#STEP 1: MFOLD
+print "STEP 1: MFold filter\n";
+if ($NoMfold == 1) #MFold not required
+   {# Fake the output of fixwinscan.pl
+
+   #Input from and output to file
+   if (! open INPUTFILE, $InpFileName)
+      {
+      feedback ("Unknown!! (Error Code: 0006)");
+      die "\nERROR: Could not open Input File $InpFileName\n";
+      }
+   if (! open OUTPUTFILE, ">$InputCoreFilename.mfold.skip")
+      {
+      feedback ("Unknown!! (Error Code: 0007)");
+      die "\nERROR: Could not open Output File $InputCoreFilename.mfold.skip\n";
+      }
+
+   while ($InpLine = <INPUTFILE>)
+         {
+         if ($InpLine !~ /\>/)
+            {print OUTPUTFILE $InpLine;}
+         }
+   close INPUTFILE;
+   close OUTPUTFILE;
+
+   print "\tSkipped.\n";
+   }#if NOMFOLD
+   else
+   {
+   print "perl fixwinscan.pl $InpFileName $FWL $UDG $SSZ\n";
+   system ("perl fixwinscan.pl $InpFileName $FWL $UDG $SSZ > $InputCoreFilename.out");
+   print "\tDONE!\n\tOutput files: $InputCoreFilename.mfold.performance and $InputCoreFilename.mfold.pass\n\n";
+   }
+
+#STEP 2: PARSER
+print "STEP 2: Parser\n";
+if ($NoMfold == 1) {$ParserInpFile="$InputCoreFilename.mfold.skip";} else {$ParserInpFile="$InputCoreFilename.mfold.pass";}
+if (!((-s $ParserInpFile) && (-r $ParserInpFile)))
+{
+ feedback ("If you selected it, no sequence could pass through the MFold filter. If you did not, some Unknown Error has occured!! (Error Code: 0008)");
+ die ("\nERROR!!! The input file \"$ParserInpFile\" either does not exist or is not readable. There was some problem at STEP 1. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n");
+}
+print "perl autoparseunique.pl $ParserInpFile $BFP $LLN $HLN\n";
+system ("perl autoparseunique.pl $ParserInpFile $BFP $LLN $HLN >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput files $InputCoreFilename.mfold.pars.performance and $InputCoreFilename.mfold.pars.pass.*\n\n";
+
+use IO;
+#STEP 3: GRAMMAR RUN
+print "STEP 3: Grammar Run\n";
+$c=1;
+while ($c > 0)
+      {
+      if (! (-e "$InputCoreFilename.mfold.pars.pass.$c")) {$c=0;next;} #Check if input file exists
+
+$newcyk_fh[$c-1] = new IO::File;
+print "./newcyk2 $InputCoreFilename.mfold.pars.pass.$c $InputProbFile $InputCoreFilename.mfold.pars.$c.grm\n";
+$newcyk_pid[$c-1] = $newcyk_fh[$c-1]->open ("./newcyk2 $InputCoreFilename.mfold.pars.pass.$c $InputProbFile $InputCoreFilename.mfold.pars.$c.grm >> $InputCoreFilename.out|");
+      $c++;
+      }
+for ($c=0;$c < scalar(@newcyk_fh);$c++)
+    {#Wait for all the running processes
+    waitpid $newcyk_pid[$c-1], 0;
+    close $newcyk_fh[$c-1];
+    }
+if (scalar(@newcyk_pid) > 0) 
+   {
+   print "\tDONE! All the above programs are over.\n\n";
+   }
+else 
+   {
+   feedback ("No sequence could pass the Minimum Terminal Stem Length filter!! (Error Code: 0010)");
+   die "\nERROR!!! There was some problem at STEP 2. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n";
+   }
+
+#STEP 4: APPLY SCORE CUTOFF
+print "STEP 4: Apply Score Cutoff\n";
+$c=1;
+while ($c > 0)
+      {
+      if (! (-e "$InputCoreFilename.mfold.pars.$c.grm")) {$c=0;next;} #Check if input file exists
+
+$cof_fh[$c-1] = new IO::File;
+print "./cutoffpassscore $InputCoreFilename.mfold.pars.$c.grm $CGS $InputCoreFilename.mfold.pars.$c.grm.cof\n";
+$cof_pid[$c-1] = $cof_fh[$c-1]->open ("./cutoffpassscore $InputCoreFilename.mfold.pars.$c.grm $CGS $InputCoreFilename.mfold.pars.$c.grm.cof >> $InputCoreFilename.out|");
+      $c++;
+      }
+for ($c=0;$c < scalar(@cof_fh);$c++)
+    {#Wait for all the running processes
+    waitpid $cof_pid[$c-1], 0;
+    close $cof_fh[$c-1];
+    }
+if (scalar(@cof_pid) > 0)
+   {
+   print "\tDONE! All the above programs are over.\n\n";
+   }
+else
+   {
+   feedback ("Probably NO putative hpRNA passed the Grammar Score Cutoff!! (Error Code: 0012)");
+   die "\nERROR!!! There was some problem at STEP 3. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n";
+   }
+
+#STEP 5: FIND LOCUS
+print "STEP 5: Find the Loci\n";
+$c=1;
+while ($c > 0)
+      {
+      if (! (-e "$InputCoreFilename.mfold.pars.$c.grm.cof")) {$c=0;next;} #Check if input file exists
+                                                                                                                             
+$loc_fh[$c-1] = new IO::File;
+print "perl findlocus.pl $InputCoreFilename.mfold.pars.$c.grm.cof $LFILE $InputCoreFilename.mfold.pars.$c.grm.cof.locus\n";
+$loc_pid[$c-1] = $loc_fh[$c-1]->open ("perl findlocus.pl $InputCoreFilename.mfold.pars.$c.grm.cof $LFILE $InputCoreFilename.mfold.pars.$c.grm.cof.locus >> $InputCoreFilename.out|");
+      $c++;
+      }
+for ($c=0;$c < scalar(@loc_fh);$c++)
+    {#Wait for all the running processes
+    waitpid $loc_pid[$c-1], 0;
+    close $loc_fh[$c-1];
+    }
+if (scalar(@loc_pid) > 0)
+   {
+   print "\tDONE! All the above programs are over.\n\n";
+   }
+else
+   {
+   feedback ("Probably NO putative hpRNA passed the Grammar Score Cutoff!! (Error Code: 0014)");
+   die "\nERROR!!! There was some problem at STEP 4. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n";
+   }
+
+#STEP 6: ORDER RESULTS
+print "STEP 6: Order the Results\n";
+print "Concatenating files...\n";
+$c=1;$loopexit=0;
+open CONCATOUT,">$InputCoreFilename.mfold.pars.grm.cof.locus";
+while ($loopexit == 0)
+      {
+      if (! (-e "$InputCoreFilename.mfold.pars.$c.grm.cof.locus")) {$loopexit=1;next;} #Check if input file exists
+
+      open CONCATIN,"$InputCoreFilename.mfold.pars.$c.grm.cof.locus";
+      while ($InLine = <CONCATIN>)
+            {
+            print CONCATOUT $InLine;
+            }
+      close CONCATIN;
+
+      $c++;
+      }
+close CONCATOUT;
+--$c;
+if ($c > 0)
+   {
+   print "\tDONE! Concatenated $c files.\n";
+   }
+else
+   {
+   feedback ("Unknown!! (Error Code: 0015)");
+   die "\nERROR!!! No files available for concatenation, at STEP 6.\n\n";
+   }
+
+print "perl orderpos.pl $InputCoreFilename.mfold.pars.grm.cof.locus\n";
+system("perl orderpos.pl $InputCoreFilename.mfold.pars.grm.cof.locus >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered\n\n";
+
+#STEP 7: REMOVE OVERLAPS
+print "STEP 7: Remove Overlaps\n";
+print "./remove_overlap $InputCoreFilename.mfold.pars.grm.cof.locus.ordered $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol\n";
+system("./remove_overlap $InputCoreFilename.mfold.pars.grm.cof.locus.ordered $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol\n\n";
+
+#STEP 8: CONVERT TO FASTA FORMAT
+print "STEP 8: Convert to FASTA format\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol")))
+{
+ feedback ("Unknown!! (Error Code: 0017)");
+ die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol\" either does not exist or is not readable. There was some problem at STEP 7. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n");
+}
+print "perl convert2fasta.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta\n";
+system ("perl convert2fasta.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta\n\n";
+
+#STEP 9: CONVERT TO R2FOLD ACCEPTABLE FORMAT WITH STRUCTURAL CONSTRAINTS
+print "STEP 9: Convert to R2Fold acceptable format with structural constraints\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta")))
+{
+ feedback ("Unknown!! (Error Code: 0018)");
+ die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta\" either does not exist or is not readable. There was some problem at STEP 8. Check \"$InputCoreFilename.out\" for troubleshooting.\n\n");
+}
+print "perl grammar2rfold.pl -i $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold\n";
+system ("perl grammar2rfold.pl -i $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold\n\n";
+
+#STEP 10: MAKE STRUCTURES USING R2FOLD
+print "STEP 10: Make structures using R2fold\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold")))
+{
+ feedback ("Unknown!! (Error Code: 0019)");
+ die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold\" either does not exist or is not readable. There was some problem at STEP 9.\n\n");
+}
+print "./RNA2fold -C -F $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD\n";
+system ("./RNA2fold -C -F $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD");
+system ("rm *.ps");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD\n\n";
+
+#STEP 11: GAWK TO REMOVE DG VALUES
+print "STEP 11: gawk to remove dG values\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD")))
+{  die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD\" either does not exist or is not readable. There was some problem at STEP 10.\n\n");
+}
+print "gawk \'{print \$1}\' $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG\n";
+system ("gawk \'{print \$1}\' $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG\n\n";
+
+#STEP 12: MERGE MULTIPLE LOOPS
+print "STEP 12: Merge multiple loops, where found\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG")))
+{  
+   feedback ("Unknown!! (Error Code: 0021)");
+   die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG\" either does not exist or is not readable. There was some problem at STEP 11.\n\n");
+}
+print "perl mergeLoops.pl -i $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops\n";
+system ("perl mergeLoops.pl -i $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG > $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops\n\n";
+
+#STEP 13: DRAW STRUCTURES
+print "STEP 13: Draw structures\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops")))
+{
+   feedback ("Unknown!! (Error Code: 0022)");
+   die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops\" either does not exist or is not readable. There was some problem at STEP 12.\n\n");
+}
+print "./vienna2struct $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str\n";
+system ("./vienna2struct $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str\n\n";
+
+#STEP 14: CALCULATE STRUCTURAL SCORES
+print "STEP 14: Calculate structural scores\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str")))
+{
+   feedback ("Unknown!! (Error Code: 0023)");
+   die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str\" either does not exist or is not readable. There was some problem at STEP 13. Check $InputCoreFilename.out for troubleshooting.\n\n");
+}
+print "./Scores4mStruct $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores\n";
+system ("./Scores4mStruct $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores\n\n";
+
+#STEP 15: FILTER ACCORDING TO THE STRUCTURAL SCORES
+print "STEP 15: Filter according to the Structural Scores\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores")))
+{
+   feedback ("Unknown!! (Error Code: 0024)");
+   die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores\" either does not exist or is not readable. There was some problem at STEP 14. Check $InputCoreFilename.out for troubleshooting.\n\n");
+}
+print "perl StructScorePass.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores $CSS $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass\n";
+system ("perl StructScorePass.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores $CSS $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass\n\n";
+
+#STEP 16: CONVERT TO FASTA FORMAT
+print "STEP 16: Convert to FASTA format\n";
+if (!((-s "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass") && (-r "$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass")))
+{
+   feedback ("Probably no sequence could pass through the Structural Score Filter!! (Error Code: 0025)");
+   die ("\nERROR!!! The input file \"$InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass\" either does not exist or is not readable. There was some problem at STEP 15. Check $InputCoreFilename.out for troubleshooting.\n\n");
+}
+print "perl strpass2fasta.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass $InputCoreFilename.final.fasta\n";
+system ("perl strpass2fasta.pl $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta.4rfold.4mRFOLD.wDG.mloops.str.scores.pass $InputCoreFilename.final.fasta >> $InputCoreFilename.out");
+print "\tDONE!\n\tOutput file $InputCoreFilename.final.fasta\n\n";
+
+#STEP 17: PRINT TIME TAKEN, etc
+if (!((-s "$InputCoreFilename.final.fasta") && (-r "$InputCoreFilename.final.fasta")))
+{
+   feedback ("Probably no sequence could pass through the Structural Score Filter!! (Error Code: 0026)");
+   die ("\nERROR!!! Expected file \"$InputCoreFilename.final.fasta\" either does not exist or is not readable. There was some problem at STEP 16. Check $InputCoreFilename.out for troubleshooting.\n\n");
+}
+
+print "FINAL OUTPUT FILES:\n\tPost-grammar cof: $InputCoreFilename.mfold.pars.grm.cof.locus.ordered.wol.fasta\n\tPost-structure cof: $InputCoreFilename.final.fasta\n";
+$TimeTaken = time() - $BeginTime;
+
+#Format $TimeTaken
+$StrTimeTaken = "";
+
+$VTimeTaken = int($TimeTaken / (60*60*24));
+if ($VTimeTaken != 0) {$StrTimeTaken = "$VTimeTaken day(s) "};
+$TimeTaken -= $VTimeTaken*(60*60*24);
+
+$VTimeTaken = int($TimeTaken / (60*60));
+if ($VTimeTaken != 0) {$StrTimeTaken .= "$VTimeTaken hour(s) "};
+$TimeTaken -= $VTimeTaken*(60*60);
+
+$VTimeTaken = int($TimeTaken / (60));
+if ($VTimeTaken != 0) {$StrTimeTaken .= "$VTimeTaken minute(s) "};
+$TimeTaken -= $VTimeTaken*(60);
+
+if ($TimeTaken != 0) {$StrTimeTaken .= "$TimeTaken second(s)"};
+if ($StrTimeTaken eq "") {$StrTimeTaken = "0 seconds";}
+
+print "TOTAL TIME TAKEN: $StrTimeTaken.\n\n";
+
+
+#Sending E-mail to the user
+#SendMail($MAIL,$RunID);
+
+
