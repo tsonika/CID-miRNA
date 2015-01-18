@@ -57,8 +57,8 @@ class parser
   public:void initializer (void);
     // get all the parameters manually
     void initializer2 (char filein[MAXPATH], char fileout[MAXPATH],
-		       unsigned long winlen, unsigned long minr,
-		       unsigned long maxr, unsigned long int cachelength = 0);
+                       unsigned long winlen, unsigned long minr,
+                       unsigned long maxr, unsigned long int cachelength = 0);
     void freememory (void);
 
 
@@ -83,11 +83,10 @@ parser::cacheparser (void)
 
     fout[filectr].open (currentfile, ios::out | ios::trunc);
 
-    if (!fout[filectr].good ())
-      {
-	  cout << "\n Error Opening Output File";
-	  exit (1);
-      }
+    if (!fout[filectr].good ()) {
+        cout << "\n Error Opening Output File";
+        exit (1);
+    }
 
     cachecur = 0;
     seqcount = 0;
@@ -109,93 +108,85 @@ parser::cacheparser (void)
     cykoutputflag = 'Y';
 
     if (cykoutputflag == 'N')
-	fout[filectr] << "\n !!  SCANNING STEM LENGTH [" << windowlen <<
-	    "] IN CACHE SIZE [" << cachelen << "]  !!\n\n";
+        fout[filectr] << "\n !!  SCANNING STEM LENGTH [" << windowlen <<
+            "] IN CACHE SIZE [" << cachelen << "]  !!\n\n";
 
-    while (cachecur < (cachelen - 2 * windowlen - minrange))
-      {
-	  foundmatch = 0;
-	  filler (window, cachecur, windowlen);
-	  //cout <<"\n" << window <<"\t"<<cachecur<<" of " <<cachelen;
+    while (cachecur < (cachelen - 2 * windowlen - minrange)) {
+        foundmatch = 0;
+        filler (window, cachecur, windowlen);
+        //cout <<"\n" << window <<"\t"<<cachecur<<" of " <<cachelen;
 
-	  if (!complementor ())
-	      continue;
+        if (!complementor ())
+            continue;
 
-	  filler (searchwindow, cachecur + windowlen + minrange,
-		  maxrange - minrange + windowlen);
+        filler (searchwindow, cachecur + windowlen + minrange,
+                maxrange - minrange + windowlen);
 
-	  ptr = mystrstr (searchwindow, compwindow);
-	  while (ptr)
-	    {
-		foundmatch = 1;
-		// *ptr = '\0';
-		seqlen =
-		    windowlen + minrange + strlen (searchwindow) -
-		    strlen (ptr) + windowlen;
-		filler (sequence, cachecur, seqlen);
-		//cout << "\n Sequence Found !! COUNT = " <<
-		++seqcount;
-		++fileseqcounter;
-		if (fileseqcounter > MAXFILESEQ)
-		  {
-		      fileseqcounter = 0;
+        ptr = mystrstr (searchwindow, compwindow);
+        while (ptr) {
+            foundmatch = 1;
+            // *ptr = '\0';
+            seqlen =
+                windowlen + minrange + strlen (searchwindow) -
+                strlen (ptr) + windowlen;
+            filler (sequence, cachecur, seqlen);
+            //cout << "\n Sequence Found !! COUNT = " <<
+            ++seqcount;
+            ++fileseqcounter;
+            if (fileseqcounter > MAXFILESEQ) {
+                fileseqcounter = 0;
 
-		      // incrementing file extension
+                // incrementing file extension
 
-		      if (filecount[1] == 'Z')
-			{
-			    filecount[1] = 'A';
-			    filecount[0]++;
-			}
-		      else
-			  filecount[1]++;
+                if (filecount[1] == 'Z') {
+                    filecount[1] = 'A';
+                    filecount[0]++;
+                } else
+                    filecount[1]++;
 
-		      fout[filectr].close ();
+                fout[filectr].close ();
 
-		      ++filectr;	// increasing file number
+                ++filectr;      // increasing file number
 
-		      strcpy (currentfile, outfile);
-		      strcat (currentfile, filecount);
+                strcpy (currentfile, outfile);
+                strcat (currentfile, filecount);
 
-		      fout[filectr].open (currentfile, ios::out | ios::trunc);
-		  }
-		if (!fout[filectr].good ())
-		  {
-		      cout << "\n Error Writing to Output File !!\n";
-		      exit (1);
-		  }
+                fout[filectr].open (currentfile, ios::out | ios::trunc);
+            }
+            if (!fout[filectr].good ()) {
+                cout << "\n Error Writing to Output File !!\n";
+                exit (1);
+            }
 
-		if ((flagverbose == 'y') && checkalienchar (sequence))	//if TRUE
-		  {
-		      if (cykoutputflag == 'N')
-			  fout[filectr] << "\n> Position : " << cachecur <<
-			      "\t Length : " << seqlen << "\n";
-		      fout[filectr] << sequence << "\n";
-		  }
+            if ((flagverbose == 'y') && checkalienchar (sequence))      //if TRUE
+            {
+                if (cykoutputflag == 'N')
+                    fout[filectr] << "\n> Position : " << cachecur <<
+                        "\t Length : " << seqlen << "\n";
+                fout[filectr] << sequence << "\n";
+            }
 
-		totalseqlen += seqlen;
-		// Just keeping and incrementing stats of all lengths found
-		++seqlentracker[seqlen - 2 * windowlen - minrange];
+            totalseqlen += seqlen;
+            // Just keeping and incrementing stats of all lengths found
+            ++seqlentracker[seqlen - 2 * windowlen - minrange];
 
-		ptr++;
-		ptr = mystrstr (ptr, compwindow);
-	    }
-	  if (foundmatch)
-	    {
-		// This particular portion is calculating the acceptance rate
-		if ((cachecur > curwindowstart) && (cachecur <= curwindowend)
-		    && ((cachecur + seqlen) > curwindowend))
-		    curwindowend = cachecur + seqlen;
-		else if (cachecur > curwindowend)
-		  {
-		      totalacclen += (curwindowend - curwindowstart);
-		      curwindowstart = cachecur;
-		      curwindowend = cachecur + seqlen;
-		  }
-		// Calculated the accepted portion
-	    }
-	  ++cachecur;
-      }
+            ptr++;
+            ptr = mystrstr (ptr, compwindow);
+        }
+        if (foundmatch) {
+            // This particular portion is calculating the acceptance rate
+            if ((cachecur > curwindowstart) && (cachecur <= curwindowend)
+                && ((cachecur + seqlen) > curwindowend))
+                curwindowend = cachecur + seqlen;
+            else if (cachecur > curwindowend) {
+                totalacclen += (curwindowend - curwindowstart);
+                curwindowstart = cachecur;
+                curwindowend = cachecur + seqlen;
+            }
+            // Calculated the accepted portion
+        }
+        ++cachecur;
+    }
 
     // Compensating Acceptance for last window accepted
     totalacclen += (curwindowend - curwindowstart);
@@ -210,70 +201,65 @@ parser::cacheparser (void)
 
     // Calculating the Mode Sequence Length
     unsigned long int maxmode = 0, posmaxmode = 0, modectr = 0;
-    for (modectr = 0; modectr <= (maxrange - minrange); ++modectr)
-      {
-	  if (maxmode < seqlentracker[modectr])
-	    {
-		maxmode = seqlentracker[modectr];
-		posmaxmode = modectr;
-	    }
-      }
+    for (modectr = 0; modectr <= (maxrange - minrange); ++modectr) {
+        if (maxmode < seqlentracker[modectr]) {
+            maxmode = seqlentracker[modectr];
+            posmaxmode = modectr;
+        }
+    }
 
     // Calculating the Median Sequence length
     unsigned long int medianpos = 0;
     long int medianctr = (seqcount + 1) / 2;
 
-    while ((medianctr > 0) && (medianpos <= (maxrange - minrange)))
-      {
-	  medianctr -= seqlentracker[medianpos];
-	  ++medianpos;
-      }
-    --medianpos;		// compensating one extra increment in while loop
+    while ((medianctr > 0) && (medianpos <= (maxrange - minrange))) {
+        medianctr -= seqlentracker[medianpos];
+        ++medianpos;
+    }
+    --medianpos;                // compensating one extra increment in while loop
 
     // Calculating Standard Deviation from Mode
     double stddevsum = 0.0, stddev = 0.0, stddevpc = 0.0;
     for (modectr = 0; modectr <= (maxrange - minrange); ++modectr)
-	stddevsum +=
-	    seqlentracker[modectr] * (posmaxmode - modectr) * (posmaxmode -
-							       modectr);
+        stddevsum +=
+            seqlentracker[modectr] * (posmaxmode - modectr) * (posmaxmode -
+                                                               modectr);
 
     stddev = sqrt (stddevsum / seqcount);
     stddevpc = stddev / (posmaxmode + 2 * windowlen + minrange) * 100;
 
 
     cout << "\n\n End of Parsing !!"
-	<< "\n\n " << seqcount << " SEQUENCES FOUND !!\n"
-	<< "\n ACCEPTANCE RATE : " << rejrate << " % \n"
-	// Just a tester
-	//<<(double)totalseqlen/(double)cachelen*100.0 <<" % \n"
-	<< "\n MINIMUM SEQUENCE LENGTH \t: " << 2 * windowlen + minrange
-	<< "\n MAXIMUM SEQUENCE LENGTH \t: " << 2 * windowlen + maxrange
-	<< "\n AVERAGE SEQUENCE LENGTH \t: " << avgseqlen
-	<< "\n MEDIAN  SEQUENCE LENGTH \t: " << medianpos + 2 * windowlen +
-	minrange << "\n MODE    SEQUENCE LENGTH \t: " << posmaxmode +
-	2 * windowlen +
-	minrange << "\n STD. DEVIATION FROM MODE\t: " << stddev << " ( " <<
-	stddevpc << " % ) \n" << "\n Please see file [" << outfile <<
-	" AA to " << filecount << "] for output !!\n";
+        << "\n\n " << seqcount << " SEQUENCES FOUND !!\n"
+        << "\n ACCEPTANCE RATE : " << rejrate << " % \n"
+        // Just a tester
+        //<<(double)totalseqlen/(double)cachelen*100.0 <<" % \n"
+        << "\n MINIMUM SEQUENCE LENGTH \t: " << 2 * windowlen + minrange
+        << "\n MAXIMUM SEQUENCE LENGTH \t: " << 2 * windowlen + maxrange
+        << "\n AVERAGE SEQUENCE LENGTH \t: " << avgseqlen
+        << "\n MEDIAN  SEQUENCE LENGTH \t: " << medianpos + 2 * windowlen +
+        minrange << "\n MODE    SEQUENCE LENGTH \t: " << posmaxmode +
+        2 * windowlen +
+        minrange << "\n STD. DEVIATION FROM MODE\t: " << stddev << " ( " <<
+        stddevpc << " % ) \n" << "\n Please see file [" << outfile <<
+        " AA to " << filecount << "] for output !!\n";
 
     // Printing Distribution
     cout << "\n Press any key to view distribution.....";
     //cin.get();
     cout << "\n | LENGTH\tFREQ\t| LENGTH\tFREQ\t| LENGTH\tFREQ\t|";
     short int colctr;
-    for (modectr = 0; modectr <= (maxrange - minrange - 3); modectr += 3)
-      {
-	  cout << "\n ";
-	  for (colctr = 0; colctr < 3; ++colctr)
-	      cout << "| " << modectr + colctr + 2 * windowlen +
-		  minrange << "\t\t" << seqlentracker[modectr +
-						      colctr] << "\t";
-	  cout << "|";
-      }
+    for (modectr = 0; modectr <= (maxrange - minrange - 3); modectr += 3) {
+        cout << "\n ";
+        for (colctr = 0; colctr < 3; ++colctr)
+            cout << "| " << modectr + colctr + 2 * windowlen +
+                minrange << "\t\t" << seqlentracker[modectr + colctr] << "\t";
+        cout << "|";
+    }
     cout << "\n ";
     for (colctr = 0; colctr <= (maxrange - minrange - modectr); ++colctr)
-	cout << "| " << modectr + colctr + 2 * windowlen +
-	    minrange << "\t\t" << seqlentracker[modectr + colctr] << "\t";
+        cout << "| " << modectr + colctr + 2 * windowlen +
+            minrange << "\t\t" << seqlentracker[modectr + colctr] << "\t";
     cout << "| ";
     // Distribution Printed
     /* if(cykoutputflag == 'N')
@@ -317,7 +303,7 @@ parser::filler (char *str, unsigned long start, unsigned long len)
     unsigned long ctr;
 
     for (ctr = 0; ((ctr < len) && (cache[start + ctr] != '\0')); ++ctr)
-	str[ctr] = cache[start + ctr];
+        str[ctr] = cache[start + ctr];
 
     str[ctr] = '\0';
 }
@@ -327,24 +313,22 @@ parser::complementor (void)
 {
     unsigned long int ctr = 0;
     strcpy (compwindow, window);
-    while ((ctr < windowlen) && (window[ctr] != '\0'))
-      {
-	  if (window[ctr] == 'A')
-	      compwindow[windowlen - 1 - ctr] = 'U';
-	  else if (window[ctr] == 'U')
-	      compwindow[windowlen - 1 - ctr] = 'A';
-	  else if (window[ctr] == 'G')
-	      compwindow[windowlen - 1 - ctr] = 'C';
-	  else if (window[ctr] == 'C')
-	      compwindow[windowlen - 1 - ctr] = 'G';
-	  else
-	    {
-		//cout<<"\n Unknown Character found near " << cachecur+ctr;
-		cachecur = cachecur + ctr + 1;
-		return 0;
-	    }
-	  ++ctr;
-      }
+    while ((ctr < windowlen) && (window[ctr] != '\0')) {
+        if (window[ctr] == 'A')
+            compwindow[windowlen - 1 - ctr] = 'U';
+        else if (window[ctr] == 'U')
+            compwindow[windowlen - 1 - ctr] = 'A';
+        else if (window[ctr] == 'G')
+            compwindow[windowlen - 1 - ctr] = 'C';
+        else if (window[ctr] == 'C')
+            compwindow[windowlen - 1 - ctr] = 'G';
+        else {
+            //cout<<"\n Unknown Character found near " << cachecur+ctr;
+            cachecur = cachecur + ctr + 1;
+            return 0;
+        }
+        ++ctr;
+    }
     return 1;
 }
 
@@ -371,14 +355,13 @@ parser::initializer (void)
     //cin >> maxrange;
     maxrange = 104;
 
-    do
-      {
-	  //cout << "\n Do you want verbose file output ? (y/n) : ";
-	  //cin >> flagverbose;
-	  //flagverbose = tolower(flagverbose);
-	  flagverbose = 'y';
+    do {
+        //cout << "\n Do you want verbose file output ? (y/n) : ";
+        //cin >> flagverbose;
+        //flagverbose = tolower(flagverbose);
+        flagverbose = 'y';
 
-      }
+    }
     while ((flagverbose != 'y') && (flagverbose != 'n'));
     //cout << "\n Enter cachelength (Min : "<< 2*windowlen+maxrange <<", Enter 0 for Max) : ";
     //cin >> cachelen;
@@ -391,8 +374,8 @@ parser::initializer (void)
 
 void
 parser::initializer2 (char filein[MAXPATH], char fileout[MAXPATH],
-		      unsigned long int winlen, unsigned long int minr,
-		      unsigned long int maxr, unsigned long int cachelength)
+                      unsigned long int winlen, unsigned long int minr,
+                      unsigned long int maxr, unsigned long int cachelength)
 {
 
     strcpy (infile, filein);
@@ -414,28 +397,22 @@ parser::mem_allocator (void)
 
     fstream f, g;
     f.open (infile, ios::in);
-    if (f.good ())
-      {
-	  while (!f.eof ())
-	    {
-		f.get ();
-		++filelen;
-	    }
-      }
-    else
-      {
-	  cout << "\n Error Opening Input File !!\n";
-	  exit (1);
-      }
+    if (f.good ()) {
+        while (!f.eof ()) {
+            f.get ();
+            ++filelen;
+        }
+    } else {
+        cout << "\n Error Opening Input File !!\n";
+        exit (1);
+    }
 
     f.close ();
 
-    if (cachelen == 0)
-      {
-	  cachelen = filelen + 2;
-	  //cout << "\n CacheLen : " << cachelen;
-      }
-
+    if (cachelen == 0) {
+        cachelen = filelen + 2;
+        //cout << "\n CacheLen : " << cachelen;
+    }
     // Allocating Memory
 
     cache = 0;
@@ -444,7 +421,7 @@ parser::mem_allocator (void)
 
     unsigned long int fillctr;
     for (fillctr = 0; fillctr < strlen (cache); ++fillctr)
-	cache[fillctr] = 0;
+        cache[fillctr] = 0;
 
     //cin.get();
     window = 0;
@@ -456,45 +433,39 @@ parser::mem_allocator (void)
     seqlentracker = new unsigned long int[maxrange - minrange + 2];
 
     if (!cache || !window || !compwindow || !searchwindow || !sequence
-	|| !seqlentracker)
-      {
-	  cout << "\n Error Allocating Memory !!\n";
-	  exit (1);
-      }
-    else
-      {
+        || !seqlentracker) {
+        cout << "\n Error Allocating Memory !!\n";
+        exit (1);
+    } else {
 
-	  // Setting count of all lengths found as zero
-	  for (fillctr = 0; fillctr <= (maxrange - minrange + 1); ++fillctr)
-	      seqlentracker[fillctr] = 0;
+        // Setting count of all lengths found as zero
+        for (fillctr = 0; fillctr <= (maxrange - minrange + 1); ++fillctr)
+            seqlentracker[fillctr] = 0;
 
-	  cachecur = 0;
+        cachecur = 0;
 
-	  g.open (infile, ios::in);
-	  if (!g.good ())
-	    {
-		cout << "\n Error Opening Input File !!\n";
-		exit (1);
-	    }
+        g.open (infile, ios::in);
+        if (!g.good ()) {
+            cout << "\n Error Opening Input File !!\n";
+            exit (1);
+        }
 
-	  while ((!g.eof ()) && (cachecur < (cachelen - 1)))
-	    {
-		ch = g.get ();
-		if (isalpha (ch))
-		  {
-		      //cout<<ch;
-		      cache[cachecur] = DNAtoRNAcomplement (toupper (ch));
-		      ++cachecur;
-		  }
-	    }
-	  cache[cachecur] = '\0';
+        while ((!g.eof ()) && (cachecur < (cachelen - 1))) {
+            ch = g.get ();
+            if (isalpha (ch)) {
+                //cout<<ch;
+                cache[cachecur] = DNAtoRNAcomplement (toupper (ch));
+                ++cachecur;
+            }
+        }
+        cache[cachecur] = '\0';
 
-	  cout << "\n Cache Fill Size : " << cachecur
-	      << "\n File Fill Size  : " << filelen;
-	  cachelen = strlen (cache);
-	  cout << "\n CACHE LEN : " << cachelen;
-	  //cin.get();
-      }
+        cout << "\n Cache Fill Size : " << cachecur
+            << "\n File Fill Size  : " << filelen;
+        cachelen = strlen (cache);
+        cout << "\n CACHE LEN : " << cachelen;
+        //cin.get();
+    }
 
     g.close ();
     cachecur = 0;
@@ -518,9 +489,9 @@ char
 parser::altcomplement (char ichar)
 {
     if (ichar == 'A')
-	return 'G';
+        return 'G';
     else if (ichar == 'C')
-	return 'U';
+        return 'U';
     return ichar;
 }
 
@@ -531,33 +502,28 @@ parser::mystrstr (char *targetstr, char *searchstr)
     int targetlen = strlen (targetstr);
 
     if (targetlen < searchlen)
-	return 0;
+        return 0;
 
     char *temp = 0;
     short matchflag = 1;
     int ctr, cur = 0;
 
-    while (cur <= (targetlen - searchlen))
-      {
-	  matchflag = 1;
-	  for (ctr = 0; (ctr < searchlen) && matchflag; ++ctr)
-	    {
-		if ((targetstr[cur + ctr] != searchstr[ctr])
-		    && (targetstr[cur + ctr] !=
-			altcomplement (searchstr[ctr])))
-		  {
-		      matchflag = 0;
-		      break;
-		  }
-	    }
-	  if (!matchflag)
-	      cur = cur + ctr + 1;
-	  else
-	    {
-		temp = targetstr + cur;
-		return temp;
-	    }
-      }
+    while (cur <= (targetlen - searchlen)) {
+        matchflag = 1;
+        for (ctr = 0; (ctr < searchlen) && matchflag; ++ctr) {
+            if ((targetstr[cur + ctr] != searchstr[ctr])
+                && (targetstr[cur + ctr] != altcomplement (searchstr[ctr]))) {
+                matchflag = 0;
+                break;
+            }
+        }
+        if (!matchflag)
+            cur = cur + ctr + 1;
+        else {
+            temp = targetstr + cur;
+            return temp;
+        }
+    }
     return 0;
 }
 
@@ -565,33 +531,32 @@ char
 parser::DNAtoRNAcomplement (char ichar)
 {
     if (ichar == 'A')
-	return 'U';
+        return 'U';
     else if (ichar == 'T')
-	return 'A';
+        return 'A';
     else if (ichar == 'G')
-	return 'C';
+        return 'C';
     else if (ichar == 'C')
-	return 'G';
+        return 'G';
     else
-	return ichar;
+        return ichar;
 }
 
 bool parser::checkalienchar (char *checkstr)
 {
     int
-	i,
-	len;
+        i,
+        len;
     len = strlen (checkstr);
 
 
     for (i = 0; i < len; ++i)
-	if ((checkstr[i] != 'A') && (checkstr[i] != 'U')
-	    && (checkstr[i] != 'G') && (checkstr[i] != 'C'))
-	  {
-	      seqcount--;
-	      fileseqcounter--;
-	      return false;
-	  }
+        if ((checkstr[i] != 'A') && (checkstr[i] != 'U')
+            && (checkstr[i] != 'G') && (checkstr[i] != 'C')) {
+            seqcount--;
+            fileseqcounter--;
+            return false;
+        }
 
     return true;
 }
@@ -602,7 +567,7 @@ int
 main ()
 {
     parser
-	p;
+        p;
     p.initializer ();
     p.freememory ();
     //cin.get();
