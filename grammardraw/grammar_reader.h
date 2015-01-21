@@ -1,3 +1,12 @@
+//**********************************************************************************
+// File		: grammar_reader.h										
+// Purpose	: Declaration of classes for reading and storing of MiRNA General SCFG
+// Author	: Vipin Gupta (viping@gmail.com), Manish Kushwaha (manish.kushwaha@gmail.com)
+// Revision	: 1.0	-	23-Feb-2005	Initial Draft (Vipin Gupta)
+//		: 2.0	-	03-Jun-2005	Minor Unpdation for compatibility with the downstream code (Manish Kushwaha)
+//		: 3.0	-	14-Jun-2005	Minor Unpdation for compatibility with the downstream code (Manish Kushwaha)
+//**********************************************************************************
+
 #ifndef _GRAMMAR__READER_H_
 #define _GRAMMAR__READER_H_
 
@@ -12,7 +21,7 @@ friend void FillFRCellUList(CykMatrixCell &,char,int);
 friend bool FillFRCellDList(CykMatrixCell &,int);
 friend void FillRestCellProcess1(const vector<CykMatrixCell> &,CykMatrixCell &,int,int);
 friend bool FillRestCellProcess2(const vector<CykMatrixCell> &,CykMatrixCell &,int,int);
-friend int main();
+friend int main(int,char**);
 
 private : string ruleLHS, ruleRHS;
 		  double RuleScore;
