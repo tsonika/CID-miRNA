@@ -106,7 +106,14 @@ def normalisedRNA(file):
     return ''.join(convertToRNA(line) for line in extractFasta(file))
 
 
-def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, manual_parameters=False):
+def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, manual_parameters=False, local=True):
+
+    if local:
+        script_path = os.path.dirname(__file__)
+        if not script_path:
+            script_path = '.'
+        command = os.path.join(script_path, command)
+
     output_filename = "%s.%s" % (filename, output_extension)
     if manual_parameters:
         full_command = [command] + parameters
@@ -423,7 +430,7 @@ def runRNA2Fold(filename):
 
 
 def removeDGValues(filename):
-    return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True)
+    return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
 def mergeLoops(filename):
