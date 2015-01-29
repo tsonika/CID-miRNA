@@ -368,20 +368,17 @@ def convertToFasta(filename):
     output_file = open(output_filename, 'w')
 
     for line in input_file:
-        if 'Predicted miRNA' in line:
-            bits = line.strip().split()
-            locus = bits[3]
-            length = bits[-1]
+        if 'Sequence' in line:
+            sequence = next(input_file)
 
             score_line = next(input_file)
             bits = score_line.strip().split()
-            score = bits[3]
+            length = bits[2]
+            score = bits[9]
             normalised_score = bits[6]
 
-            sequence = next(input_file)
-
-            fasta_line = ">Predicted\tmiRNA Position: %s\tLength: %s\tScore: %s\tNormalised Score: %s\n%s" %(locus, length, score, normalised_score, sequence)
-            output_filename.write(fasta_line)
+            fasta_line = ">Predicted\tLength: %s\tScore: %s\tNormalised Score: %s\n%s" % (length, score, normalised_score, sequence)
+            output_file.write(fasta_line)
     output_file.close()
     input_file.close()
 
@@ -393,11 +390,11 @@ def grammarToRFold(filename):
     Convert FASTA to something that is recognised by RNAfold with constraints options
 
     FASTA should be in the following format:
-    >Predicted      miRNA Position: 23209   Length: 100     Score: -60.1264 Normalised Score: -0.601264
+    >Predicted      Length: 100     Score: -60.1264 Normalised Score: -0.601264
     CCTTCTAGTGGCAAGAGTGACGTAAGTGATATGCGGAAATTTCTTTCCAAGCCTGCTTGGAGAAGCTTCCTCTGCCTGCTTCTCTTTGGCCACCTCCAGG
-    >Predicted      miRNA Position: 23509   Length: 75      Score: -45.5868 Normalised Score: -0.607824
+    >Predicted      Length: 75      Score: -45.5868 Normalised Score: -0.607824
     GTTTTCCCTCTTATGTCCAGCAAATGCTGCATGGAGCCCTGGAATTCTATGTGGAAAGCTAGGAAGAGGGAGAGC
-    >Predicted      miRNA Position: 38122   Length: 62      Score: -37.5368 Normalised Score: -0.605432
+    >Predicted      Length: 62      Score: -37.5368 Normalised Score: -0.605432
     GGGTCTTTGTGTCAATCTGAGCTCTGATGTCCACCTAGAGATTGGGTATCCACCTAAGGCCC
 
     """
@@ -414,11 +411,10 @@ def grammarToRFold(filename):
 
         if stripped_line.startswith('>'):
             bits = stripped_line.split()
-            position = bits[3]
-            score = bits[7]
+            score = bits[4]
             normalised_score = bits[-1]
 
-            output_filename.write('>%s(%s)(%s)\n' % (position, score, normalised_score)) 
+            output_file.write('>Score(%s)(%s)\n' % (score, normalised_score)) 
         else:
             output_file.write(line)
             line_length = len(line) - 1
@@ -672,7 +668,8 @@ def main(args):
 
 
     parameters = parser.parse_args(args)
-    logging.basicConfig(level=levelFromVerbosity(parameters.verbosity))
+    # logger doubles as a section timer
+    logging.basicConfig(level=levelFromVerbosity(parameters.verbosity), format="%(asctime)s:%(levelname)s:%(name)s:%(message)s")
 
     result = 0
 
@@ -699,19 +696,19 @@ def main(args):
         logging.error("Cuttoff run failed on %s" % grammar_filename)
         return 1
 
-    loci_filename = findLoci(cutoff_filename, full_filename)
-    if not loci_filename:
-        logging.error("Loci finder failed on %s" % cutoff_filename)
-        return 1
+    # loci_filename = findLoci(cutoff_filename, full_filename)
+    # if not loci_filename:
+    #     logging.error("Loci finder failed on %s" % cutoff_filename)
+    #     return 1
 
-    no_overlap_filename = runCommand('remove_overlap', loci_filename, [], 'nooverlap')
-    if not no_overlap_filename:
-        logging.error("Problems removing overlaps on %s" % loci_filename)
-        return 1
+    # no_overlap_filename = runCommand('remove_overlap', loci_filename, [], 'nooverlap')
+    # if not no_overlap_filename:
+    #     logging.error("Problems removing overlaps on %s" % loci_filename)
+    #     return 1
 
-    grammar_fasta_filename = convertToFasta(no_overlap_filename)
+    grammar_fasta_filename = convertToFasta(cutoff_filename)
     if not grammar_fasta_filename:
-        logging.error("Problems converting %s to fasta" % no_overlap_filename)
+        logging.error("Problems converting %s to fasta" % cutoff_filename)
         return 1
 
     rfold_filename = grammarToRFold(grammar_fasta_filename)
