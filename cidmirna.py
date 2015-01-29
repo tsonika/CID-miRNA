@@ -447,21 +447,33 @@ def mergeLoops(filename):
 
     """
 
-    #FIXME: this one not done. Need to see what the output of rna2fold looks like
+    #FIXME: this one not done.
 
     output_filename = "%s.mloops" % filename
 
+    divergent_loops = re.compile(r'\).*.\(')
+
     output_file = open(output_filename,'w')
     input_file = open(filename)
-    for line in filename:
+    for line in input_file:
         stripped_line = line.strip()
         if not line or stripped_line.startswith('#'):
             continue
 
-        if stripped_line.startswith('#'):
+        if stripped_line.startswith('>'):
             output_file.write(line)
         elif stripped_line[0] not in 'ACGTUacgtu':
             count = position = 0
+
+            for match in divergent_loops.finditer(stripped_line):
+                count += 1
+
+            if count == 0:
+                # only one loop. Write it as is
+                output_file.write(line)
+            else:
+                # Don't really understand what to do with multiple loops yet
+                pass
 
 
         else:
