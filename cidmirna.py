@@ -24,6 +24,8 @@ DefaultGrammarScoreCutoff = -0.609999
 DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 
+# We are packaging old binaries until we recreate the source
+NeedPreload = ['newcyk2']
 
 #--------------------------------------------------------------------------------------------------------------------------
 # This program calls the following six programs in succession for a full genome scan
@@ -62,7 +64,7 @@ DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 # [8] grammar2rfold.pl
 #               - Input filename in the final results format                N
 #
-# [9] RNA2fold
+# [9] RNAfold
 #               - Some parameters                           N (supplied here)
 #               - Input filename with sequences and structural constraints      N
 #
@@ -106,7 +108,19 @@ def normalisedRNA(file):
     return ''.join(convertToRNA(line) for line in extractFasta(file))
 
 
-def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, manual_parameters=False):
+def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, input=None, manual_parameters=False, local=True):
+
+    ld_library_path = None
+    if local:
+        script_path = os.path.dirname(__file__)
+        if not script_path:
+            script_path = '.'
+
+        if command in NeedPreload:
+            ld_library_path = script_path
+        command = os.path.join(script_path, command)
+
+
     output_filename = "%s.%s" % (filename, output_extension)
     if manual_parameters:
         full_command = [command] + parameters
@@ -120,9 +134,12 @@ def runCommand(command, filename, parameters, output_extension, output_is_stdout
         full_command.append(output_filename)
         output = None
 
+    environment = dict(os.environ)
+    if ld_library_path:
+        environment['LD_LIBRARY_PATH'] = "%s:%s" % (ld_library_path, environment['LD_LIBRARY_PATH'])
     try:
         logging.info("Running %s" % " ".join(full_command))
-        subprocess.check_call(full_command, stdout=output, close_fds=True)
+        subprocess.check_call(full_command, stdout=output, stdin=input, close_fds=True, env=environment)
         logging.info("Finished running %s" % " ".join(full_command))
     except subprocess.CalledProcessError as error:
         logging.error("%s exited with code %s" % (' '.join(full_command), error.returncode))
@@ -149,12 +166,15 @@ def findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
         maxAvailableLength = min(line_length - start, maxLength)
         for length in range(minLength, maxAvailableLength + 1):
             substring = line[start:start+length]
-            if all(character in 'ACTG' for character in substring):
+            if all(character in 'ACUG' for character in substring):
                 startMatch = substring[:endBasePairs]
                 endMatch = substring[-endBasePairs:][::-1]
 
-                if all(dnaCrickMatch(base1, base2) for base1, base2 in zip(startMatch, endMatch)):
+                if all(rnaCrickMatch(base1, base2) for base1, base2 in zip(startMatch, endMatch)):
                     matches.append(substring)
+            else:
+                # if all characters are not legal now, they won't be when we extend the string
+                break
 
 
     return matches
@@ -183,6 +203,7 @@ def parser4auto(filename, endBasePairs, minLength, maxLength):
     for line in extractFasta(fasta_file):
         logging.debug("line: %s" % line)
 
+        line = convertToRNA(line)
         for result in findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
             parsed_sequences.add(result)
                 
@@ -347,20 +368,17 @@ def convertToFasta(filename):
     output_file = open(output_filename, 'w')
 
     for line in input_file:
-        if 'Predicted miRNA' in line:
-            bits = line.strip().split()
-            locus = bits[3]
-            length = bits[-1]
+        if 'Sequence' in line:
+            sequence = next(input_file)
 
             score_line = next(input_file)
             bits = score_line.strip().split()
-            score = bits[3]
+            length = bits[2]
+            score = bits[9]
             normalised_score = bits[6]
 
-            sequence = next(input_file)
-
-            fasta_line = ">Predicted\tmiRNA Position: %s\tLength: %s\tScore: %s\tNormalised Score: %s\n%s" %(locus, length, score, normalised_score, sequence)
-            output_filename.write(fasta_line)
+            fasta_line = ">Predicted\tLength: %s\tScore: %s\tNormalised Score: %s\n%s" % (length, score, normalised_score, sequence)
+            output_file.write(fasta_line)
     output_file.close()
     input_file.close()
 
@@ -372,11 +390,11 @@ def grammarToRFold(filename):
     Convert FASTA to something that is recognised by RNAfold with constraints options
 
     FASTA should be in the following format:
-    >Predicted      miRNA Position: 23209   Length: 100     Score: -60.1264 Normalised Score: -0.601264
+    >Predicted      Length: 100     Score: -60.1264 Normalised Score: -0.601264
     CCTTCTAGTGGCAAGAGTGACGTAAGTGATATGCGGAAATTTCTTTCCAAGCCTGCTTGGAGAAGCTTCCTCTGCCTGCTTCTCTTTGGCCACCTCCAGG
-    >Predicted      miRNA Position: 23509   Length: 75      Score: -45.5868 Normalised Score: -0.607824
+    >Predicted      Length: 75      Score: -45.5868 Normalised Score: -0.607824
     GTTTTCCCTCTTATGTCCAGCAAATGCTGCATGGAGCCCTGGAATTCTATGTGGAAAGCTAGGAAGAGGGAGAGC
-    >Predicted      miRNA Position: 38122   Length: 62      Score: -37.5368 Normalised Score: -0.605432
+    >Predicted      Length: 62      Score: -37.5368 Normalised Score: -0.605432
     GGGTCTTTGTGTCAATCTGAGCTCTGATGTCCACCTAGAGATTGGGTATCCACCTAAGGCCC
 
     """
@@ -393,11 +411,10 @@ def grammarToRFold(filename):
 
         if stripped_line.startswith('>'):
             bits = stripped_line.split()
-            position = bits[3]
-            score = bits[7]
+            score = bits[4]
             normalised_score = bits[-1]
 
-            output_filename.write('>%s(%s)(%s)\n' % (position, score, normalised_score)) 
+            output_file.write('>Score(%s)(%s)\n' % (score, normalised_score)) 
         else:
             output_file.write(line)
             line_length = len(line) - 1
@@ -410,20 +427,19 @@ def grammarToRFold(filename):
     return output_filename
 
 
-def runRNA2Fold(filename):
-    output_filename = runCommand('RNA2fold', filename, ['-C', '-F', filename], 'rfold', output_is_stdout=True, manual_parameters=True)
-
-    # clean up all the .ps files
-
-    for filename in os.listdir('.'):
-        if filename.endswith('.ps'):
-            os.remove(filename)
+def runRNAFold(filename):
+    input = open(filename)
+    output_filename = runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input=input)
+    input.close()
 
     return output_filename
 
 
-def removeDGValues(filename):
-    return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True)
+def removeMeanFreeEnergyValues(filename):
+    """
+    Remove the scores produced by RNAfold
+    """
+    return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
 def mergeLoops(filename):
@@ -431,21 +447,33 @@ def mergeLoops(filename):
 
     """
 
-    #FIXME: this one not done. Need to see what the output of rna2fold looks like
+    #FIXME: this one not done.
 
     output_filename = "%s.mloops" % filename
 
+    divergent_loops = re.compile(r'\).*.\(')
+
     output_file = open(output_filename,'w')
     input_file = open(filename)
-    for line in filename:
+    for line in input_file:
         stripped_line = line.strip()
         if not line or stripped_line.startswith('#'):
             continue
 
-        if stripped_line.startswith('#'):
+        if stripped_line.startswith('>'):
             output_file.write(line)
         elif stripped_line[0] not in 'ACGTUacgtu':
             count = position = 0
+
+            for match in divergent_loops.finditer(stripped_line):
+                count += 1
+
+            if count == 0:
+                # only one loop. Write it as is
+                output_file.write(line)
+            else:
+                # Don't really understand what to do with multiple loops yet
+                pass
 
 
         else:
@@ -651,7 +679,8 @@ def main(args):
 
 
     parameters = parser.parse_args(args)
-    logging.basicConfig(level=levelFromVerbosity(parameters.verbosity))
+    # logger doubles as a section timer
+    logging.basicConfig(level=levelFromVerbosity(parameters.verbosity), format="%(asctime)s:%(levelname)s:%(name)s:%(message)s")
 
     result = 0
 
@@ -678,19 +707,19 @@ def main(args):
         logging.error("Cuttoff run failed on %s" % grammar_filename)
         return 1
 
-    loci_filename = findLoci(cutoff_filename, full_filename)
-    if not loci_filename:
-        logging.error("Loci finder failed on %s" % cutoff_filename)
-        return 1
+    # loci_filename = findLoci(cutoff_filename, full_filename)
+    # if not loci_filename:
+    #     logging.error("Loci finder failed on %s" % cutoff_filename)
+    #     return 1
 
-    no_overlap_filename = runCommand('remove_overlap', loci_filename, [], 'nooverlap')
-    if not no_overlap_filename:
-        logging.error("Problems removing overlaps on %s" % loci_filename)
-        return 1
+    # no_overlap_filename = runCommand('remove_overlap', loci_filename, [], 'nooverlap')
+    # if not no_overlap_filename:
+    #     logging.error("Problems removing overlaps on %s" % loci_filename)
+    #     return 1
 
-    grammar_fasta_filename = convertToFasta(no_overlap_filename)
+    grammar_fasta_filename = convertToFasta(cutoff_filename)
     if not grammar_fasta_filename:
-        logging.error("Problems converting %s to fasta" % no_overlap_filename)
+        logging.error("Problems converting %s to fasta" % cutoff_filename)
         return 1
 
     rfold_filename = grammarToRFold(grammar_fasta_filename)
@@ -698,14 +727,14 @@ def main(args):
         logging.error("Problems converting FASTA to something for rfold on %s" % grammar_fasta_filename)
         return 1
 
-    rfold_output_filename = runRNA2Fold(rfold_filename)
+    rfold_output_filename = runRNAFold(rfold_filename)
     if not rfold_output_filename:
-        logging.error("Problems running RNA2fold on %s" % rfold_filename)
+        logging.error("Problems running RNAfold on %s" % rfold_filename)
         return 1
 
-    nodg_filename = removeDGValues(rfold_output_filename)
+    nodg_filename = removeMeanFreeEnergyValues(rfold_output_filename)
     if not nodg_filename:
-        logging.error("Problems removing DG values on %s" % rfold_output_filename)
+        logging.error("Problems removing mean free energy values on %s" % rfold_output_filename)
         return 1
 
     merged_loops_filename = mergeLoops(nodg_filename)
