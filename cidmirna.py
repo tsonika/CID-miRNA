@@ -24,6 +24,8 @@ DefaultGrammarScoreCutoff = -0.609999
 DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 
+# We are packaging old binaries until we recreate the source
+NeedPreload = ['newcyk2']
 
 #--------------------------------------------------------------------------------------------------------------------------
 # This program calls the following six programs in succession for a full genome scan
@@ -108,11 +110,16 @@ def normalisedRNA(file):
 
 def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, manual_parameters=False, local=True):
 
+    ld_library_path = None
     if local:
         script_path = os.path.dirname(__file__)
         if not script_path:
             script_path = '.'
+
+        if command in NeedPreload:
+            ld_library_path = script_path
         command = os.path.join(script_path, command)
+
 
     output_filename = "%s.%s" % (filename, output_extension)
     if manual_parameters:
@@ -127,9 +134,12 @@ def runCommand(command, filename, parameters, output_extension, output_is_stdout
         full_command.append(output_filename)
         output = None
 
+    environment = dict(os.environ)
+    if ld_library_path:
+        environment['LD_LIBRARY_PATH'] = "%s:%s" % (ld_library_path, environment['LD_LIBRARY_PATH'])
     try:
         logging.info("Running %s" % " ".join(full_command))
-        subprocess.check_call(full_command, stdout=output, close_fds=True)
+        subprocess.check_call(full_command, stdout=output, close_fds=True, env=environment)
         logging.info("Finished running %s" % " ".join(full_command))
     except subprocess.CalledProcessError as error:
         logging.error("%s exited with code %s" % (' '.join(full_command), error.returncode))
@@ -156,12 +166,15 @@ def findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
         maxAvailableLength = min(line_length - start, maxLength)
         for length in range(minLength, maxAvailableLength + 1):
             substring = line[start:start+length]
-            if all(character in 'ACTG' for character in substring):
+            if all(character in 'ACUG' for character in substring):
                 startMatch = substring[:endBasePairs]
                 endMatch = substring[-endBasePairs:][::-1]
 
-                if all(dnaCrickMatch(base1, base2) for base1, base2 in zip(startMatch, endMatch)):
+                if all(rnaCrickMatch(base1, base2) for base1, base2 in zip(startMatch, endMatch)):
                     matches.append(substring)
+            else:
+                # if all characters are not legal now, they won't be when we extend the string
+                break
 
 
     return matches
@@ -190,6 +203,7 @@ def parser4auto(filename, endBasePairs, minLength, maxLength):
     for line in extractFasta(fasta_file):
         logging.debug("line: %s" % line)
 
+        line = convertToRNA(line)
         for result in findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
             parsed_sequences.add(result)
                 
