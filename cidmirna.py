@@ -136,7 +136,7 @@ def runCommand(command, filename, parameters, output_extension, output_is_stdout
 
     environment = dict(os.environ)
     if ld_library_path:
-        environment['LD_LIBRARY_PATH'] = "%s:%s" % (ld_library_path, environment['LD_LIBRARY_PATH'])
+        environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get['LD_LIBRARY_PATH'] if "LD_LIBRARY_PATH" in environment else '')
     try:
         logging.info("Running %s" % " ".join(full_command))
         subprocess.check_call(full_command, stdout=output, stdin=input, close_fds=True, env=environment)
