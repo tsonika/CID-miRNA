@@ -64,7 +64,7 @@ NeedPreload = ['newcyk2']
 # [8] grammar2rfold.pl
 #               - Input filename in the final results format                N
 #
-# [9] RNA2fold
+# [9] RNAfold
 #               - Some parameters                           N (supplied here)
 #               - Input filename with sequences and structural constraints      N
 #
@@ -108,7 +108,7 @@ def normalisedRNA(file):
     return ''.join(convertToRNA(line) for line in extractFasta(file))
 
 
-def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, manual_parameters=False, local=True):
+def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, input=None, manual_parameters=False, local=True):
 
     ld_library_path = None
     if local:
@@ -139,7 +139,7 @@ def runCommand(command, filename, parameters, output_extension, output_is_stdout
         environment['LD_LIBRARY_PATH'] = "%s:%s" % (ld_library_path, environment['LD_LIBRARY_PATH'])
     try:
         logging.info("Running %s" % " ".join(full_command))
-        subprocess.check_call(full_command, stdout=output, close_fds=True, env=environment)
+        subprocess.check_call(full_command, stdout=output, stdin=input, close_fds=True, env=environment)
         logging.info("Finished running %s" % " ".join(full_command))
     except subprocess.CalledProcessError as error:
         logging.error("%s exited with code %s" % (' '.join(full_command), error.returncode))
@@ -427,19 +427,18 @@ def grammarToRFold(filename):
     return output_filename
 
 
-def runRNA2Fold(filename):
-    output_filename = runCommand('RNA2fold', filename, ['-C', '-F', filename], 'rfold', output_is_stdout=True, manual_parameters=True)
-
-    # clean up all the .ps files
-
-    for filename in os.listdir('.'):
-        if filename.endswith('.ps'):
-            os.remove(filename)
+def runRNAFold(filename):
+    input = open(filename)
+    output_filename = runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input=input)
+    input.close()
 
     return output_filename
 
 
-def removeDGValues(filename):
+def removeMeanFreeEnergyValues(filename):
+    """
+    Remove the scores produced by RNAfold
+    """
     return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
@@ -716,14 +715,14 @@ def main(args):
         logging.error("Problems converting FASTA to something for rfold on %s" % grammar_fasta_filename)
         return 1
 
-    rfold_output_filename = runRNA2Fold(rfold_filename)
+    rfold_output_filename = runRNAFold(rfold_filename)
     if not rfold_output_filename:
-        logging.error("Problems running RNA2fold on %s" % rfold_filename)
+        logging.error("Problems running RNAfold on %s" % rfold_filename)
         return 1
 
-    nodg_filename = removeDGValues(rfold_output_filename)
+    nodg_filename = removeMeanFreeEnergyValues(rfold_output_filename)
     if not nodg_filename:
-        logging.error("Problems removing DG values on %s" % rfold_output_filename)
+        logging.error("Problems removing mean free energy values on %s" % rfold_output_filename)
         return 1
 
     merged_loops_filename = mergeLoops(nodg_filename)
