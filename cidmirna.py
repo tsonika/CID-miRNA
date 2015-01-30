@@ -14,6 +14,7 @@ import subprocess
 import re
 import time
 
+
 DefaultWindowLength = 125
 DefaultUpperDGCutoff = -13.559
 DefaultWindowStepSize = 10
@@ -25,7 +26,7 @@ DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 
 # We are packaging old binaries until we recreate the source
-NeedPreload = ['newcyk2']
+NeedPreload = ['newcyk2','vienna2struct']
 
 #--------------------------------------------------------------------------------------------------------------------------
 # This program calls the following six programs in succession for a full genome scan
@@ -442,12 +443,65 @@ def removeMeanFreeEnergyValues(filename):
     return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
+
+def keepOneLoop(structure):
+    """
+    Keep only the centre loop in a structure. 
+    """
+
+    loop_centre = re.compile(r'\(\.*\)')
+
+    
+    loop_centres = []
+    halfway = len(structure) / 2
+    for match in loop_centre.finditer(structure):
+        loop_centre = (match.start() + match.end()) / 2
+        loop_centres.append((abs(halfway - loop_centre), loop_centre))
+
+    closest_to_centre = min(loop_centres)
+    centre_loop = closest_to_centre[1]
+
+    # We've decided on the winner, now get rid of every other loop
+
+    def straightenLoopsBefore(structure, end, closes_loop, opens_loop):
+        fixed_until = end - 1
+        while fixed_until >= 0:
+            closing_loop = structure.rfind(closes_loop, 0, fixed_until)
+            if closing_loop < 0:
+                # done
+                break
+
+            closed = 1
+            index = closing_loop - 1
+
+            while index >= 0:
+                if structure[index] == closes_loop:
+                    closed += 1
+                elif structure[index] == opens_loop:
+                    closed -= 1
+                    if closed == 0:
+                        # all found, replace everything in between with dots
+                        structure = structure[:index] + ('.' * (closing_loop - index + 1)) + structure[closing_loop+1:]
+                        fixed_until = index - 1
+                        break
+                index -= 1
+        return structure
+
+    # First backwards
+    structure = straightenLoopsBefore(structure, centre_loop, ')', '(')
+    # Now forwards, by reversing the structure
+    structure = structure[::-1]
+    structure = straightenLoopsBefore(structure, centre_loop, '(', ')')
+    structure = structure[::-1]
+
+    return structure
+
+
 def mergeLoops(filename):
     """
-
+    Make sure there's only one loop per structure. If there are more, keep the centre one and 
+    'straighten' the other ones out
     """
-
-    #FIXME: this one not done.
 
     output_filename = "%s.mloops" % filename
 
@@ -463,18 +517,19 @@ def mergeLoops(filename):
         if stripped_line.startswith('>'):
             output_file.write(line)
         elif stripped_line[0] not in 'ACGTUacgtu':
-            count = position = 0
+            count = 0
 
-            for match in divergent_loops.finditer(stripped_line):
+            for _ in divergent_loops.finditer(stripped_line):
                 count += 1
+                break
 
             if count == 0:
                 # only one loop. Write it as is
                 output_file.write(line)
             else:
-                # Don't really understand what to do with multiple loops yet
-                pass
-
+                # Multiple loops. There must be only one
+                straightened_structure = keepOneLoop(stripped_line)
+                output_file.write("%s\n" % straightened_structure)
 
         else:
             output_file.write(line)
@@ -485,62 +540,6 @@ def mergeLoops(filename):
 
     return output_filename
 
-    """
-
-            if(/^>/) { # read the header line
-                print "$_\n";
-            } elsif ($_ !~ /^[ACGTUacgtu]/) {
-                $string = $_;
-                $count = 0;       # Count of the pattern
-                $pos = 0;
-                $beforematch=$aftermatch=$pattern = "";
-                while ($string =~ /\).*.\(/g) {
-                $count++;
-                    #  print STDERR "before match = $`, After match = $'\nPattern matched:$&\n";
-                $pattern = $&;
-                $beforematch = $`;
-                $aftermatch = $';
-                } # while looks for the multiple loops 
-                #  print STDERR "count:$count\n";   
-                $subpatbegin = $subpatend =  0;
-                if ($count >0) {  # if multiple loops found
-#                   if ($pattern =~ /^\)+/) {
-                    $subpatbegin = $pattern =~ s/\)/\)/g;
-#                                        print  "$pattern has $subpatbegin )\n";
- #                      $subpatbegin = $&;
-  #                     $subpatbegin =~ s/\)/\(/g;
-   #                }
-    
-#               if($pattern =~ /\(+$/) {
-                                        $subpatend = $pattern =~ s/\(/\(/g;
- #                      $subpatend = $&;
-  #                     $subpatend =~ s/\(/\)/g;
-   #                }
-                    if($subpatbegin>0 and $subpatend>0) {
-                    $beforematch = reverse $beforematch;
-#print "$beforematch\t$subpatbegin\n";
-                    for($x=0; $x<$subpatbegin; $x++) {
-                            $beforematch =~ s/\(/\./;
-                    } #end for
-#print "$beforematch\n";
-                    $beforematch = reverse $beforematch;
-#print "$aftermatch\t$subpatend\n";
-                    for($x=0; $x<$subpatend; $x++) {
-                            $aftermatch =~ s/\)/\./;
-                    } #end for
-#print "$aftermatch\n";
-                        $pattern =~ s/./\./g;
-                        $finalResult = $beforematch.$pattern.$aftermatch;
-                    print STDOUT "$finalResult\n";
-                } #if length
-                } else {    # if single loop, print as it is
-                    print STDOUT "$_\n";
-                }
-            } else { 
-            print STDOUT "$_\n";   #if not start with [acgt]
-        }
-
-    """
 
 
 def filterOnScores(filename, cutoff_score):
