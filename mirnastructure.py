@@ -51,18 +51,16 @@ gaguuuca  ggg       auuucggug  gaug g
         unmatched_downstream.append(unmatched_down)
 
 
+    centre_point = loop_start + loop_length // 2
+    upstream_structure = structure[:centre_point][::-1] # reversed
+    upstream_sequence = sequence[:centre_point][::-1]
+
     if (loop_length % 2) == 0:
         # standard case
-        centre_point = loop_start + loop_length / 2
-        upstream_structure = structure[:centre_point][::-1] # reversed
-        upstream_sequence = sequence[:centre_point][::-1]
         downstream_structure = structure[centre_point:]
         downstream_sequence = sequence[centre_point:]
     else:
         # odd-length. hmm, assign an extra base unmatched to the top
-        centre_point = loop_start + loop_length // 2
-        upstream_structure = structure[:centre_point][::-1]
-        upstream_sequence = sequence[:centre_point][::-1]
         downstream_structure = structure[centre_point+1:]
         downstream_sequence = sequence[centre_point+1:]
 
