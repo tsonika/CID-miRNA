@@ -1,6 +1,6 @@
-CXXFLAGS := -O2 -Wall -Wextra -mtune=native -march=native
+CXXFLAGS := -O2 -Wall -Wextra
 
-EXECUTABLES := parser4auto cutoffpassscore Scores4mStruct
+EXECUTABLES := bin/cutoffpassscore bin/Scores4mStruct
 
 all: $(EXECUTABLES)
 
@@ -10,16 +10,16 @@ parser4auto: parser4auto.o
 #newcyk2: newcyk2.o
 #	$(CXX) $(CXXFLAGS) $< -o $@	
 
-cutoffpassscore: cutoffpassscore.o
+bin/cutoffpassscore: src/cutoffpassscore.o
 	$(CXX) $(CXXFLAGS) $< -o $@	
 
-Scores4mStruct: Scores4mStruct.o
+bin/Scores4mStruct: src/Scores4mStruct.o
 	$(CXX) $(CXXFLAGS) $< -o $@	
 
 
 
 clean: 
-	rm -f *.o
+	rm -f src/*.o
 	rm -f $(EXECUTABLES)
 
 .o: $(CXX) $(CXXFLAGS) -c $(<) -o $*.o
