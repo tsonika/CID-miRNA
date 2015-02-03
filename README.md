@@ -9,6 +9,10 @@ Volume 372, Issue 4, 8 August 2008, Pages 831-834
 
 CIDmiRNA is the tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
 
+It depends on RNAfold, which can be downloaded from http://www.tbi.univie.ac.at/RNA/RNAfold.html It has been tested 
+with version 2.1.8, but it is very likely that earlier versions will work too.
+
+
 ###Input sequence
 
 One can either upload or paste FASTA sequence(s). The sequence should not contain any ambiguous characters (only A, C, G, T and U are allowed). 
