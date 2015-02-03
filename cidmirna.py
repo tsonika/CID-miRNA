@@ -95,6 +95,8 @@ def runCommand(command, filename, parameters, output_extension, output_is_stdout
         if not script_path:
             script_path = '.'
 
+        script_path = os.path.join(script_path, 'bin')
+
         if command in NeedPreload:
             ld_library_path = script_path
         command = os.path.join(script_path, command)
