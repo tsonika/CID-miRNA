@@ -34,58 +34,31 @@ NeedPreload = ['newcyk2']
 #--------------------------------------------------------------------------------------------------------------------------
 # Program Name          Input Arguments                         Needed in this program
 #--------------------------------------------------------------------------------------------------------------------------
-#[1] autoparseunique.pl
-#               - Input file with only sequences to be parsed               N
-#               - Number of bases to force pair at the ends             default = 3
-#               - Lowest length allowed                         default = 60
-#               - Highest length allowed                        default = 114
-#
-# [2] newcyk2
+# [1] newcyk2
 #               - Input file with only sequences to be run through the grammar      N
 #               - Input probability file name                       N
 #               - Output result filename                        N
 #
-# [3] cutoffpassscore
+# [2] cutoffpassscore
 #               - Input filename with sequences and scores              N
 #               - Cutoff grammar score                          default = -0.609999
 #               - Output filename                           N
 #
-# [4] findlocus.pl
-#               - Input filename from CutOff selector                   N
-#               - Source fasta format filename                      N
-#               - Output filename                           N
-# [5] orderpos.pl
-#               - Input filename with unordered positions               N
 #
-# [6] remove_overlap
-#               - Input filename with overlaps                      N
-#               - Output filename without overlaps                  N
-# [7] convert2fasta.pl
-#               - Input filename in the final results format                N
-#
-# [8] grammar2rfold.pl
-#               - Input filename in the final results format                N
-#
-# [9] RNAfold
+# [3] RNAfold
 #               - Some parameters                           N (supplied here)
 #               - Input filename with sequences and structural constraints      N
 #
-# [10] gawk
+# [4] gawk
 #               - Some parameters                           N
 #               - Input filename with the Rfold structures              N
 #
-# [11] mergeLoops.pl
-#               - Input filename with the Rfold structures              N
 #
-# [12] vienna2struct
-#               - Input filename with the Rfold structures (merged loops)       N
-#               - Output filename for storing the drawn structures          N
-#
-# [13] Scores4mStruct
+# [5] Scores4mStruct
 #               - Input filename with the drawn structures              N
 #               - Output filename for storing the scores                N
 #
-# [14] StructScorePass
+# [6] StructScorePass
 #               - Input filename with the scores and structures             N
 #               - Output filename for storing the final results             N
 #
@@ -111,6 +84,10 @@ def normalisedRNA(file):
 
 
 def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, input=None, manual_parameters=False, local=True):
+
+    """
+    Standard command run wrapper.
+    """
 
     ld_library_path = None
     if local:
@@ -308,59 +285,6 @@ def runNewcyk(filename, probabilities_filename):
 def runCutoffPassscore(filename, score):
     return runCommand('cutoffpassscore', filename, [str(score)], "cof")
 
-
-def findLoci(filename, fasta_filename):
-    """
-    Look for the given sequences returned from the CutOff selector program in the source Contig file, and
-    writes another file that can serve as input for the Overlap Remover
-    """
-
-    output_filename = "%s.%s" % (filename, "loci")
-
-    input_file = open(filename)
-
-    contig_file = open(fasta_filename)
-    rna = normalisedRNA(contig_file)
-    contig_file.close()
-
-    sequences = []
-
-    #Run through the Input File and look for its position in the ContigFile
-    for line in input_file:
-        if line.startswith('Sequence :'):
-            sequence_line = next(input_file).strip()
-            if sequence_line:
-                score_line = next(input_file)
-                score_line = score_line.strip()
-
-                _, _, _, sequence_length, _, _, _, normalised_sequence_score, _, _, sequence_score = score_line.split()
-                sequence_line = sequence_line.upper()
-
-                # Find all the locations of the sequence in the original file
-                found = False
-                last_index = 0
-                while last_index >= 0:
-                    last_index = rna.find(sequence_line, last_index)
-                    if last_index >= 0:
-                        found = True
-
-                        sequences.append((last_index, """ Predicted miRNA\tPosition: %s   Length = %s\n Score = %s\tNormalized Score = %s\n%s\n""" % (last_index, sequence_length, sequence_score, normalised_sequence_score, convertToRNA(sequence_line))))
-                        last_index += 1
-
-                if not found:
-                    logging.error("A sequence in the input file was not found in the Source fasta.\n%s\nContinuing with other sequences...\n\n" % sequence_line)
-
-    input_file.close()
-
-    # sort the sequences by location
-    sequences.sort()
-
-    output_file = open(output_filename, "w")
-    for sequence in sequences:
-        output_file.write(sequence[1])
-    output_file.close()    
-
-    return output_filename
 
 
 def convertToFasta(filename):
@@ -698,8 +622,6 @@ def main(args):
         help="Cutoff structural score (default: %(default)s)")    
     parser.add_argument("-e", "--email", dest="email", default=None,
         help="Email address to send results to")    
-    #parser.add_argument("--loci-filename", dest="lociFilename", default=None, required=True,
-    #    help="Name of file within which the loci need to be located")
     parser.add_argument("--probabilities-filename", dest="probabilitiesFilename", default=DefaultProbabilitiesFilename,
         help="Filename where to find the CFG probabilities (default: %(default)s)")
     parser.add_argument("sequences", nargs=1,
@@ -734,16 +656,6 @@ def main(args):
     if not cutoff_filename:
         logging.error("Cuttoff run failed on %s" % grammar_filename)
         return 1
-
-    # loci_filename = findLoci(cutoff_filename, full_filename)
-    # if not loci_filename:
-    #     logging.error("Loci finder failed on %s" % cutoff_filename)
-    #     return 1
-
-    # no_overlap_filename = runCommand('remove_overlap', loci_filename, [], 'nooverlap')
-    # if not no_overlap_filename:
-    #     logging.error("Problems removing overlaps on %s" % loci_filename)
-    #     return 1
 
     grammar_fasta_filename = convertToFasta(cutoff_filename)
     if not grammar_fasta_filename:
