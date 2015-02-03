@@ -14,6 +14,7 @@ import subprocess
 import re
 import time
 
+from mirnastructure import diagramFromStructure
 
 DefaultWindowLength = 125
 DefaultUpperDGCutoff = -13.559
@@ -26,7 +27,7 @@ DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 
 # We are packaging old binaries until we recreate the source
-NeedPreload = ['newcyk2','vienna2struct']
+NeedPreload = ['newcyk2']
 
 #--------------------------------------------------------------------------------------------------------------------------
 # This program calls the following six programs in succession for a full genome scan
@@ -541,6 +542,34 @@ def mergeLoops(filename):
     return output_filename
 
 
+def structuresToDiagrams(filename):
+    """
+    Draw diagrams for a file of dot-bracket structures 
+    """
+    output_filename = "%s.diags" % filename
+
+    input_file = open(filename)
+    output_file = open(output_filename,'w')
+
+    for line in input_file:
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("#"):
+            continue
+
+        if stripped_line.startswith('>'):
+            output_file.write(line)
+        elif stripped_line[0] in 'ACUGacug':
+            sequence = stripped_line
+            output_file.write(line)
+            structure = next(input_file).strip()
+            diagram = diagramFromStructure(sequence, structure)
+            output_file.write("%s\n" % "\n".join(diagram))
+
+    output_file.close()
+    input_file.close()
+
+    return output_filename
+
 
 def filterOnScores(filename, cutoff_score):
     """
@@ -741,15 +770,15 @@ def main(args):
         logging.error("Problems merging loops on %s" % nodg_filename)
         return 1
 
-    vienna_filename = runCommand('vienna2struct', merged_loops_filename, [], 'struct')
-    if not vienna_filename:
-        logging.error("Problems running vienna2struct on %s" % merged_loops_filename)
+    diagram_filename = structuresToDiagrams(merged_loops_filename)
+    if not diagram_filename:
+        logging.error("Problems converting structures to diagrams on %s" % merged_loops_filename)
         return 1
 
 
-    scores_filename = runCommand('Scores4mStruct', vienna_filename, [], 'scores')
+    scores_filename = runCommand('Scores4mStruct', diagram_filename, [], 'scores')
     if not scores_filename:
-        logging.error("Problems running Scores4mStruct on %s" % vienna_filename)
+        logging.error("Problems running Scores4mStruct on %s" % diagram_filename)
         return 1
 
 
