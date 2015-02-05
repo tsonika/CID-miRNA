@@ -64,6 +64,94 @@ NeedPreload = ['newcyk2']
 #
 #--------------------------------------------------------------------------------------------------------------------------
 
+class StandardRunner(object):
+    def run(self, command, output_filename=None, error_filename=None, input_filename=None, environment=None):
+        parameters = {
+            'close_fds' : True
+        }
+
+        if output_filename:
+            output_file = open(output_filename, 'w')
+            parameters['stdout'] = output_file
+        if input_filename:
+            input_file = open(input_filename)
+            parameters['stdin'] = input_file
+        if error_filename:
+            if error_filename != output_filename:
+                error_file = open(error_filename, 'w')
+            else:
+                error_file = output_file
+            parameters['stderr'] = error_file
+
+        if environment:
+            parameters['env'] = environment
+
+        logging.debug("Running %s" % " ".join(command))
+        exit_code = subprocess.call(command, **parameters)
+        logging.debug("Finished running %s with exit code %s" % (" ".join(command), exit_code))
+
+
+        if input_filename:
+            input_file.close()            
+        if output_filename:
+            output_file.close()
+        if error_filename and error_filename != output_filename:
+            error_file.close()
+
+        return exit_code
+
+
+class Runner(object):
+
+    Runner = StandardRunner()
+
+    @classmethod
+    def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
+
+        """
+        Standard command run wrapper.
+        """
+
+        ld_library_path = None
+        if local:
+            script_path = os.path.dirname(__file__)
+            if not script_path:
+                script_path = '.'
+
+            script_path = os.path.join(script_path, 'bin')
+
+            if command in NeedPreload:
+                ld_library_path = script_path
+            command = os.path.join(script_path, command)
+
+
+
+        output_filename = "%s.%s" % (filename, output_extension)
+        if manual_parameters:
+            full_command = [command] + parameters
+        else:
+            full_command = [command, filename] + parameters
+
+        if output_is_stdout:
+            piped_output = output_filename
+        else:
+            full_command.append(output_filename)
+            piped_output = None
+
+        environment = dict(os.environ)
+        if ld_library_path:
+            environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
+
+        exit_code = cls.Runner.run(full_command, output_filename=piped_output, 
+            input_filename=input_filename, environment=environment)
+        if exit_code != 0:
+            return False
+
+        return output_filename
+
+
+
+
 
 def extractFasta(file):
     """
@@ -81,55 +169,6 @@ def convertToRNA(sequence):
 
 def normalisedRNA(file):
     return ''.join(convertToRNA(line) for line in extractFasta(file))
-
-
-def runCommand(command, filename, parameters, output_extension, output_is_stdout=False, input=None, manual_parameters=False, local=True):
-
-    """
-    Standard command run wrapper.
-    """
-
-    ld_library_path = None
-    if local:
-        script_path = os.path.dirname(__file__)
-        if not script_path:
-            script_path = '.'
-
-        script_path = os.path.join(script_path, 'bin')
-
-        if command in NeedPreload:
-            ld_library_path = script_path
-        command = os.path.join(script_path, command)
-
-
-    output_filename = "%s.%s" % (filename, output_extension)
-    if manual_parameters:
-        full_command = [command] + parameters
-    else:
-        full_command = [command, filename] + parameters
-
-    if output_is_stdout:
-        output_file = open(output_filename, 'w')
-        output = output_file
-    else:
-        full_command.append(output_filename)
-        output = None
-
-    environment = dict(os.environ)
-    if ld_library_path:
-        environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
-    try:
-        logging.info("Running %s" % " ".join(full_command))
-        subprocess.check_call(full_command, stdout=output, stdin=input, close_fds=True, env=environment)
-        logging.info("Finished running %s" % " ".join(full_command))
-    except subprocess.CalledProcessError as error:
-        logging.error("%s exited with code %s" % (' '.join(full_command), error.returncode))
-        return False
-
-    if output_is_stdout:
-        output_file.close()
-
-    return output_filename
 
 
 
@@ -282,10 +321,10 @@ def autoParseUnique(filename, endBasePairs, minLength, maxLength):
 
 
 def runNewcyk(filename, probabilities_filename):
-    return runCommand('newcyk2', filename, [probabilities_filename], 'grm')
+    return Runner.runCommand('newcyk2', filename, [probabilities_filename], 'grm')
 
 def runCutoffPassscore(filename, score):
-    return runCommand('cutoffpassscore', filename, [str(score)], "cof")
+    return Runner.runCommand('cutoffpassscore', filename, [str(score)], "cof")
 
 
 
@@ -356,10 +395,7 @@ def grammarToRFold(filename):
 
 
 def runRNAFold(filename):
-    input = open(filename)
-    output_filename = runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input=input)
-    input.close()
-
+    output_filename = Runner.runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input_filename=filename)
     return output_filename
 
 
@@ -367,7 +403,7 @@ def removeMeanFreeEnergyValues(filename):
     """
     Remove the scores produced by RNAfold
     """
-    return runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
+    return Runner.runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
 
@@ -626,6 +662,14 @@ def main(args):
         help="Email address to send results to")    
     parser.add_argument("--probabilities-filename", dest="probabilitiesFilename", default=DefaultProbabilitiesFilename,
         help="Filename where to find the CFG probabilities (default: %(default)s)")
+    parser.add_argument('--sge', dest="sge", default=False, action="store_true",
+        help="Use Sun Grid Engine")
+    parser.add_argument('--queue', dest="sge_queue", default=None,
+        help="SGE queue to use")
+    parser.add_argument('--sge-logs', dest="sge_logs", default=None,
+        help="Redirect SGE log output to this directory")
+
+
     parser.add_argument("sequences", nargs=1,
                       help="Filenames containing FASTA or FASTQ sequences")
 
@@ -633,6 +677,25 @@ def main(args):
     parameters = parser.parse_args(args)
     # logger doubles as a section timer
     logging.basicConfig(level=levelFromVerbosity(parameters.verbosity), format="%(asctime)s:%(levelname)s:%(name)s:%(message)s")
+
+    if parameters.sge:
+        # Reroute all command-calling to SGE
+        import sge
+        if parameters.sge_logs:
+            sge_logs_directory = parameters.sge_logs
+            if not os.path.isdir(sge_logs_directory):
+                if os.path.exists(sge_logs_directory):
+                    parser.error("%s exists but isn't a directory" % sge_logs_directory)
+                else:
+                    try:
+                        os.makedirs(sge_logs_directory)
+                    except OSError as error:
+                        parser.error("Problems creating %s: %s" % (sge_logs_directory, error))
+        else:
+            sge_logs_directory = None
+
+        Runner.Runner = sge.SGE(queue=parameters.sge_queue, logs_directory=sge_logs_directory)
+
 
     result = 0
 
@@ -690,7 +753,7 @@ def main(args):
         return 1
 
 
-    scores_filename = runCommand('Scores4mStruct', diagram_filename, [], 'scores')
+    scores_filename = Runner.runCommand('Scores4mStruct', diagram_filename, [], 'scores')
     if not scores_filename:
         logging.error("Problems running Scores4mStruct on %s" % diagram_filename)
         return 1

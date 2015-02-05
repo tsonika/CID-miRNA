@@ -2,15 +2,18 @@
 #CID-miRNA:CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
 http://mirna.jnu.ac.in/cidmirna
 
-Please cite this article as:                                                                 
-Tyagi S. et. al., Biochemical and Biophysical Research Communications                       
-Volume 372, Issue 4, 8 August 2008, Pages 831-834                                           
+Please cite this article as:
+
+    Tyagi S. et. al., Biochemical and Biophysical Research Communications                       
+    Volume 372, Issue 4, 8 August 2008, Pages 831-834                                           
 
 
 CIDmiRNA is the tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
 
-It depends on RNAfold, which can be downloaded from http://www.tbi.univie.ac.at/RNA/RNAfold.html It has been tested 
-with version 2.1.8, but it is very likely that earlier versions will work too.
+It is written in Python. It runs on Python 2.7.x, or 3.3.x or higher.
+
+It also depends on RNAfold, which can be downloaded from http://www.tbi.univie.ac.at/RNA/RNAfold.html It has been tested 
+with version 2.1.8, but it is very likely to work with earlier versions too.
 
 
 ###Input sequence
