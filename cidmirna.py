@@ -109,6 +109,7 @@ class Runner(object):
 
     Runner = StandardRunner()
     MaxProcesses = None
+    OutputDirectory = '.'
 
     @classmethod
     def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
@@ -321,53 +322,74 @@ def findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_ma
 
 
 
-def generatePossibleSubsequences(filename, end_base_pairs, min_length, max_length, all_combinations=True):
+def generatePossibleSubsequences(filenames, end_base_pairs, min_length, max_length, all_combinations=True):
     """
     Python version of parser4auto.cpp. 
-    Emit all substrings of between minLength and maxLength characters from lines in filename 
+    Emit all substrings of between minLength and maxLength characters from lines in filenames 
     where the endBasePairs pairs at either end match with each other (Watson-Crick style)
     """
 
+    output_filenames = []
     parsed_sequences = set()
     output_counter = 1
 
-    try:
-        fasta_file = flexibleOpen(filename)
-    except (OSError, IOError) as error:
-        logging.error("Could not open %s" % filename)
-        return False
+    for filename in filenames:
 
-    if all_combinations:
-        max_matches = None
-    else:
-        max_matches = 1
+        try:
+            fasta_file = flexibleOpen(filename)
+        except (OSError, IOError) as error:
+            logging.error("Could not open %s" % filename)
+            return False
 
-    for line in extractSequences(fasta_file):
-        line = convertToRNA(line)
+        if all_combinations:
+            max_matches = None
+        else:
+            max_matches = 1
 
-        for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
-            parsed_sequences.add(result)
+        for line in extractSequences(fasta_file):
+            line = convertToRNA(line)
 
-    fasta_file.close()
+            for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
+                parsed_sequences.add(result)
 
-    if not parsed_sequences:
-        return False
+        fasta_file.close()
 
-    output_filename = "%s.%s" % (filename, output_counter)
-    try:
-        with open(output_filename,'w') as output_file:
-            for sequence in parsed_sequences:
-                output_file.write("%s\n" % sequence)
-    except (IOError, OSError) as error:
-        logging.error("Problems trying to create %s: %s" % (output_filename, error))
-        return False
+        if not parsed_sequences:
+            continue
+
+        output_filename = "%s.%s" % (filename, output_counter)
+        try:
+            with open(output_filename,'w') as output_file:
+                for sequence in parsed_sequences:
+                    output_file.write("%s\n" % sequence)
+        except (IOError, OSError) as error:
+            logging.error("Problems trying to create %s: %s" % (output_filename, error))
+            return False
+
+        output_filenames.append(output_filename)
+
+    return output_filenames
+
+
+
+def runNewcyk(filenames, probabilities_filename):
+    output_filenames = []
+    for filename in filenames:
+        output_filename = Runner.runCommand('newcyk2', filename, [probabilities_filename], 'grm')
+        if output_filename:
+            output_filenames.append(output_filename)
+
+    # merge the outputs
+    output_filename = os.path.join(Runner.OutputDirectory, 'combined.grm')
+    command = ['cat'] + output_filenames
+    output_file = open(output_filename,'w')
+    exit_code = subprocess.call(command, stdout=output_file)
+    output_file.close()
+    if exit_code != 0:
+        logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
+        return None
 
     return output_filename
-
-
-
-def runNewcyk(filename, probabilities_filename):
-    return Runner.runCommand('newcyk2', filename, [probabilities_filename], 'grm')
 
 def runCutoffPassscore(filename, score):
     return Runner.runCommand('cutoffpassscore', filename, [str(score)], "cof")
@@ -691,7 +713,7 @@ def main(args):
         help="Upper dG cutoff value (default: %(default)s)")
     parser.add_argument("-b", "--end-base-pairs", dest="endBasePairs", type=int, default=DefaultEndBasePairs,
         help="Number of bases to force pair at the ends (default: %(default)s)")
-    parser.add_argument("-o", "--one-candidate", dest="oneCandidatePerLine", default=False,
+    parser.add_argument("-1", "--one-candidate", dest="oneCandidatePerLine", default=False,
         action="store_true",
         help="Generate only one candidate miRNA per sequence line instead of all possible subsequences")    
     parser.add_argument("-m", "--min-length", dest="minLength", type=int, default=DefaultMinLength,
@@ -715,6 +737,8 @@ def main(args):
         help="Redirect SGE log output to this directory")
     parser.add_argument('--max-processes', dest="max_processes", default=None, type=int,
         help="""Maximum number of parallel processes to use. By default, it will be the number of CPU threads if not using SGE, or the number of slots in the queue if using SGE. If using SGE, but not specifying a queue, it is recommended that you pass this parameter""")
+    parser.add_argument('-o', '--output-directory', dest="output_directory", default=Runner.OutputDirectory,
+        help="""Where to store all the output (default: %(default)s)""")
 
 
     parser.add_argument("sequences", nargs="+",
@@ -746,27 +770,31 @@ def main(args):
     if parameters.max_processes:
         Runner.MaxProcesses = parameters.max_processes
 
+    Runner.OutputDirectory = os.path.expanduser(parameters.output_directory)
+
 
     logging.info("Max processes that will be used: %s" % Runner.max_processes())
 
     result = 0
 
-    filename = parameters.sequences[0]
-    full_filename = os.path.expanduser(filename)
-    if not os.path.isfile(full_filename):
-        parser.error("%s is not a file" % filename)
+    full_filenames = []
+    for filename in parameters.sequences:
+        full_filename = os.path.expanduser(filename)
+        if not os.path.isfile(full_filename):
+            parser.error("%s is not a file" % filename)
+        full_filenames.append(full_filename)        
 
     start_time = time.time()
 
-    parsed_filename = generatePossibleSubsequences(full_filename, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
+    parsed_filenames = generatePossibleSubsequences(full_filenames, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
 
-    if not parsed_filename:
-        logging.error("Couldn't parse sequences from %s." % filename)
+    if not parsed_filenames:
+        logging.error("Couldn't parse sequences from %s." % ', '.join(parameters.sequences))
         return 1
 
-    grammar_filename = runNewcyk(parsed_filename, parameters.probabilitiesFilename)
+    grammar_filename = runNewcyk(parsed_filenames, parameters.probabilitiesFilename)
     if not grammar_filename:
-        logging.error("Grammar run failed on %s" % parsed_filename)
+        logging.error("Grammar run failed on %s" % ', '.join(parsed_filenames))
         return 1
 
     cutoff_filename = runCutoffPassscore(grammar_filename, parameters.grammarCutoff)
