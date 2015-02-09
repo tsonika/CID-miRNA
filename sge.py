@@ -30,6 +30,7 @@ def quote(s):
 
 
 class SGE(object):
+    MaxProcessesNoQueue = 10
     DefaultPollingPeriod = 30
 
     def __init__(self, queue=None, logs_directory=None, polling_period=DefaultPollingPeriod):
@@ -178,3 +179,36 @@ class SGE(object):
         return sge_command
 
 
+    def max_processes(self, queue=None):
+        """
+        Return the number of slots in the queue
+        """
+        if queue is None:
+            queue = self.queue
+
+        if not queue:
+            # It's hard to find which queue will be used by default, so just go with some
+            # default number
+            return self.MaxProcessesNoQueue
+
+        command = ['qconf', '-sq', queue]
+        try:
+            output = subprocess.check_output(command, close_fds=True)
+        except subprocess.CalledProcessError:
+            logging.error("Couldn't get maximum number of processes")
+            return None
+
+        for line in output.splitlines():
+            if line.startswith('slots'):
+                bits = line.split()
+                try:
+                    slots_number = bits[1].split(',')[0]
+                    slots = int(slots_number)
+                except (ValueError, IndexError):
+                    logging.error("Slots line didn't come in the format we expected: %s" % line)
+                    return None
+
+                return slots
+        else:
+            logging.error("Couldn't find the number of slots for the SGE queue")
+            return None

@@ -99,9 +99,16 @@ class StandardRunner(object):
         return exit_code
 
 
+    def max_processes(self):
+        import multiprocessing
+        return multiprocessing.cpu_count()
+
+
+
 class Runner(object):
 
     Runner = StandardRunner()
+    MaxProcesses = None
 
     @classmethod
     def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
@@ -147,6 +154,12 @@ class Runner(object):
 
         return output_filename
 
+    @classmethod
+    def max_processes(cls):
+        if cls.MaxProcesses:
+            return cls.MaxProcesses
+        else:
+            return cls.Runner.max_processes()
 
 
 def flexibleOpen(filename):
@@ -700,6 +713,8 @@ def main(args):
         help="SGE queue to use")
     parser.add_argument('--sge-logs', dest="sge_logs", default=None,
         help="Redirect SGE log output to this directory")
+    parser.add_argument('--max-processes', dest="max_processes", default=None, type=int,
+        help="""Maximum number of parallel processes to use. By default, it will be the number of CPU threads if not using SGE, or the number of slots in the queue if using SGE. If using SGE, but not specifying a queue, it is recommended that you pass this parameter""")
 
 
     parser.add_argument("sequences", nargs="+",
@@ -728,6 +743,11 @@ def main(args):
 
         Runner.Runner = sge.SGE(queue=parameters.sge_queue, logs_directory=sge_logs_directory)
 
+    if parameters.max_processes:
+        Runner.MaxProcesses = parameters.max_processes
+
+
+    logging.info("Max processes that will be used: %s" % Runner.max_processes())
 
     result = 0
 
