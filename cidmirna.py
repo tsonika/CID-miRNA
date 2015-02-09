@@ -8,8 +8,6 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 
 import sys, os
 import logging
-import tempfile
-import shutil
 import subprocess
 import re
 import time
@@ -308,19 +306,21 @@ def dnaCrickMatch(base1, base2):
     return base1 == 'C' and base2 == 'G' or base1 == 'G' and base2 == 'C' or base1 == 'A' and base2 == 'T' or base1 == 'T' and base2 == 'A'
 
 
-def findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
+def findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=None):
     matches = []
     line_length = len(line)
-    for start in range(line_length - minLength + 1):
-        maxAvailableLength = min(line_length - start, maxLength)
-        for length in range(minLength, maxAvailableLength + 1):
+    for start in range(line_length - min_length + 1):
+        max_available_length = min(line_length - start, max_length)
+        for length in range(min_length, max_available_length + 1):
             substring = line[start:start+length]
             if all(character in 'ACUG' for character in substring):
-                startMatch = substring[:endBasePairs]
-                endMatch = substring[-endBasePairs:][::-1]
+                start_match = substring[:end_base_pairs]
+                end_match = substring[-end_base_pairs:][::-1]
 
-                if all(rnaCrickMatch(base1, base2) for base1, base2 in zip(startMatch, endMatch)):
+                if all(rnaCrickMatch(base1, base2) for base1, base2 in zip(start_match, end_match)):
                     matches.append(substring)
+                    if max_matches and len(matches) >= max_matches:
+                        return matches
             else:
                 # if all characters are not legal now, they won't be when we extend the string
                 break
@@ -330,7 +330,7 @@ def findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
 
 
 
-def parser4auto(filename, endBasePairs, minLength, maxLength):
+def generatePossibleSubsequences(filename, end_base_pairs, min_length, max_length, all_combinations=True):
     """
     Python version of parser4auto.cpp. 
     Emit all substrings of between minLength and maxLength characters from lines in filename 
@@ -346,13 +346,18 @@ def parser4auto(filename, endBasePairs, minLength, maxLength):
         logging.error("Could not open %s" % filename)
         return False
 
+    if all_combinations:
+        max_matches = None
+    else:
+        max_matches = 1
+
     for line in extractSequences(fasta_file):
         logging.debug("line: %s" % line)
 
         line = convertToRNA(line)
-        for result in findSubstringsThatMatch(line, endBasePairs, minLength, maxLength):
+
+        for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
             parsed_sequences.add(result)
-                
 
     fasta_file.close()
 
@@ -370,74 +375,6 @@ def parser4auto(filename, endBasePairs, minLength, maxLength):
 
     return output_filename
 
-
-
-def autoParseUnique(filename, endBasePairs, minLength, maxLength):
-    """
-    Automate the process of parsing sequences from the parser
-    """
-
-
-    MaxListSize = 850
-
-    parsed_sequences = set()
- 
-    output_counter = 1
-
-    try:
-        fasta_file = open(filename)
-    except (OSError, IOError) as error:
-        logging.error("Could not open %s" % filename)
-        return False
-
-    current_directory = os.path.abspath(os.curdir)
-
-    temp_directory = tempfile.mkdtemp(prefix='cidmirna')
-    logging.debug("Temp directory: %s" % temp_directory)
-    ParsedMarker = 'PARSED SEQUENCE:'
-    for line in extractSequences(fasta_file):
-        logging.debug("line: %s" % line)
-        search_filename = os.path.join(temp_directory, "TempFile")
-        search_file = open(search_filename, 'w')
-        search_file.write("%s\n" % line)
-        search_file.close()
-
-        command = [os.path.join(current_directory, 'parser4auto'), search_filename, str(endBasePairs), str(minLength), str(maxLength)]
-
-
-        try:
-            logging.info("Running %s" % " ".join(command))
-            output = subprocess.check_output(command, cwd=temp_directory, close_fds=True)
-            for output_line in output.splitlines():
-                if output_line.startswith(ParsedMarker):
-                    rest = output_line[len(ParsedMarker):]
-                    parsed_sequences.add(rest)
-                    if len(parsed_sequences) > MaxListSize:
-                        break
-
-        except subprocess.CalledProcessError as error:
-            logging.error("%s exited with code %s" % (' '.join(command), error.returncode))
-            fasta_file.close()
-            return False
-
-        else:
-            if len(parsed_sequences) > MaxListSize:
-                break
-
-    fasta_file.close()
-    shutil.rmtree(temp_directory)
-
-
-    output_filename = "%s.%s" % (filename, output_counter)
-    try:
-        with open(output_filename,'w') as output_file:
-            for sequence in parsed_sequences:
-                output_file.write("%s\n" % sequence)
-    except (IOError, OSError) as error:
-        logging.error("Problems trying to create %s: %s" % (output_filename, error))
-        return False
-
-    return output_filename
 
 
 def runNewcyk(filename, probabilities_filename):
@@ -761,14 +698,13 @@ def main(args):
                       help="Verbosity.  Invoke many times for higher verbosity")
     parser.add_argument("-t", "--train", dest="train", default=False, action="store_true",
                       help="Train model")
-    parser.add_argument("-l", "--window-length", dest="windowLength", default=DefaultWindowLength, type=int,
-        help="Fixed window length to scan with (default: %(default)s)")
-    parser.add_argument("--window-step-size", dest="windowStepSize", type=int, default=DefaultWindowStepSize,
-        help="Step size to use for shifting window (default: %(default)s)")
     parser.add_argument("-dG", "--upper-dg", dest="upperDGCutoff", type=float, default=DefaultUpperDGCutoff,
         help="Upper dG cutoff value (default: %(default)s)")
     parser.add_argument("-b", "--end-base-pairs", dest="endBasePairs", type=int, default=DefaultEndBasePairs,
         help="Number of bases to force pair at the ends (default: %(default)s)")
+    parser.add_argument("-o", "--one-candidate", dest="oneCandidatePerLine", default=False,
+        action="store_true",
+        help="Generate only one candidate miRNA per sequence line instead of all possible subsequences")    
     parser.add_argument("-m", "--min-length", dest="minLength", type=int, default=DefaultMinLength,
         help="Minimum length allowed (default: %(default)s)")
     parser.add_argument("-x", "--max-length", dest="maxLength", type=int, default=DefaultMaxLength,
@@ -826,7 +762,7 @@ def main(args):
 
     start_time = time.time()
 
-    parsed_filename = parser4auto(full_filename, parameters.endBasePairs, parameters.minLength, parameters.maxLength)
+    parsed_filename = generatePossibleSubsequences(full_filename, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
 
     if not parsed_filename:
         logging.error("Couldn't parse sequences from %s." % filename)
