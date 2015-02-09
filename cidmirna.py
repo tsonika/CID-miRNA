@@ -182,24 +182,23 @@ def extractSequences(file):
     try:
         first_lines.append(next(file))
         first_lines.append(next(file))
-        first_lines.append(next(file))
-        first_lines.append(next(file))
     except StopIteration:
-        # we didn't even get to four
+        # we didn't even get to two
         pass
 
     count = len(first_lines)
     if count == 0:
         # nothing there
-        pass
+        return
     elif count == 1:
         # one line. probably just a data line
-        if not first_lines[0].startswith('>'):
+        if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
             contig = despace(first_lines[0])
             if contig and contig[0] in 'ACGTUacgtu':
                 yield contig
+        return
     else:
-        if not first_lines[0].startswith('>'):
+        if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
             # more than one line, and first line is not a description. Going to check for all data
             # otherwise bail
             all_data = True
@@ -211,22 +210,12 @@ def extractSequences(file):
                     else:
                         all_data = False
                         logging.error("Don't recognise format of file")
-                        break
+                        return
         else:
             all_data = False
-            if count == 2:
-                # probably a single-entry fasta
-                contig = despace(first_lines[1])
-                if contig:
-                    yield contig
-            elif count == 3:
-                # A three-liner. No idea. Maybe one of them is empty
-                for line in first_lines:
-                    contig = despace(line)
-                    if contig and contig[0] in 'ACGTUacgtu':
-                        yield contig
-            else:
-                # that's all four lines and first line is a description. Something standard-looking
+            if first_lines[0].startswith('>'):
+                # fasta
+                fastq = False
                 contig = despace(first_lines[1])
                 if contig:
                     yield contig
@@ -234,35 +223,24 @@ def extractSequences(file):
                     # we were all set for something standard, but no
                     logging.error("Don't recognise format of file")
                     return
-
-                if first_lines[2].startswith('>'):
-                    # fasta
-                    fastq = False
-                    contig = despace(first_lines[3])
-                    if contig:
-                        yield contig
-                    else:
-                        # Again, whackiness
-                        logging.error("Don't recognise format of file")
-                        return
-                elif first_lines[2].startswith('+'):
-                    # fastq
-                    fastq = True
-                    contig = despace(first_lines[3])
-                    if contig:
-                        yield contig
-                    else:
-                        # Again, whackiness
-                        logging.error("Don't recognise format of file")
-                        return
+            else:
+                # fastq
+                fastq = True
+                contig = despace(first_lines[1])
+                if contig:
+                    yield contig                
                 else:
-                    # no idea                    
+                    # we were all set for something standard, but no
                     logging.error("Don't recognise format of file")
                     return
 
-    if count < 4:
-        # that was that
-        return
+                # consume the rest of the first record                    
+                try:
+                    separator = next(file)                
+                    quality = next(file)
+                except StopIteration:
+                    # that's an early stop
+                    return
 
     if all_data:
         for line in file:
@@ -285,7 +263,7 @@ def extractSequences(file):
                 separator = next(file)
                 quality = next(file)
 
-                contig = despace(quality)
+                contig = despace(sequence)
                 yield contig
         except StopIteration:
             pass
@@ -352,8 +330,6 @@ def generatePossibleSubsequences(filename, end_base_pairs, min_length, max_lengt
         max_matches = 1
 
     for line in extractSequences(fasta_file):
-        logging.debug("line: %s" % line)
-
         line = convertToRNA(line)
 
         for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
@@ -726,7 +702,7 @@ def main(args):
         help="Redirect SGE log output to this directory")
 
 
-    parser.add_argument("sequences", nargs=1,
+    parser.add_argument("sequences", nargs="+",
                       help="Filenames containing FASTA or FASTQ sequences")
 
 
