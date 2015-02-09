@@ -13,13 +13,10 @@ import re
 import time
 
 from mirnastructure import diagramFromStructure
+from foldingsubsequences import generatePossibleSubsequences, DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
+from utils import generateRNACombinations
 
-DefaultWindowLength = 125
 DefaultUpperDGCutoff = -13.559
-DefaultWindowStepSize = 10
-DefaultEndBasePairs = 3
-DefaultMinLength = 60
-DefaultMaxLength = 114
 DefaultGrammarScoreCutoff = -0.609999
 DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
@@ -99,6 +96,45 @@ class StandardRunner(object):
         return exit_code
 
 
+    def multi_run(self, commands, environment=None, buffer_size=None):
+        """
+        Run commands and wait for them to finish
+        """
+        parameters = {
+            'close_fds' : True,
+            'stderr' : subprocess.PIPE
+        }
+
+        success = True
+        if environment:
+            parameters['env'] = environment
+
+        if buffer_size is not None:
+            parameters['bufsize'] = buffer_size
+
+        processes = {}
+        for command in commands:
+            logging.info("Running %s" % " ".join(command))
+            process = subprocess.Popen(command, **parameters)
+            processes[process] = command
+            
+
+        for process, command in processes.items():
+            _, stderrdata = process.communicate()
+
+            if process.returncode == 0:
+                logger = logging.info
+            else:
+                logger = logging.error
+                success = False
+
+            logger("Finished running %s with exit code %s" % (" ".join(command), process.returncode))
+            if stderrdata:
+                logging.error("%s output to stderr: %s" % (" ".join(command), stderrdata))
+
+        return success
+
+
     def max_processes(self):
         import multiprocessing
         return multiprocessing.cpu_count()
@@ -157,7 +193,8 @@ class Runner(object):
         if exit_code != 0:
             return False
 
-        return output_filename
+        return output_filename        
+
 
     @classmethod
     def map_file_to_output_directory(cls, filename):
@@ -173,166 +210,8 @@ class Runner(object):
 
 
 
-def flexibleOpen(filename):
-    """
-    Open a file, decompressing it if it looks to be compressed
-    """
 
-    if filename.endswith('.gz'):
-        import gzip
-        file = gzip.open(filename, 'r')
-    elif filename.endswith('.bz2'):
-        import bz2
-        file = bz2.BZ2File(filename, 'r', 16384)
-    else:
-        file = open(filename)
-
-    return file
-
-
-def extractSequences(file):
-    """
-    Iterator over fasta or fastq files. Generates space-less lines of contig
-    """
-    fastq = all_data = None # we don't know whether it is a fastq or a fasta yet
-    spacer = re.compile(r'\s')
-
-    def despace(line):
-        return spacer.sub('', line)
-
-    # find out if it's fasta or fastq or something else
-
-    first_lines = []
-    try:
-        first_lines.append(next(file))
-        first_lines.append(next(file))
-    except StopIteration:
-        # we didn't even get to two
-        pass
-
-    count = len(first_lines)
-    if count == 0:
-        # nothing there
-        return
-    elif count == 1:
-        # one line. probably just a data line
-        if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
-            contig = despace(first_lines[0])
-            if contig and contig[0] in 'ACGTUacgtu':
-                yield contig
-        return
-    else:
-        if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
-            # more than one line, and first line is not a description. Going to check for all data
-            # otherwise bail
-            all_data = True
-            for line in first_lines:
-                contig = despace(line)
-                if contig:
-                    if contig[0] in 'ACGTUacgtu':
-                        yield contig
-                    else:
-                        all_data = False
-                        logging.error("Don't recognise format of file")
-                        return
-        else:
-            all_data = False
-            if first_lines[0].startswith('>'):
-                # fasta
-                fastq = False
-                contig = despace(first_lines[1])
-                if contig:
-                    yield contig
-                else:
-                    # we were all set for something standard, but no
-                    logging.error("Don't recognise format of file")
-                    return
-            else:
-                # fastq
-                fastq = True
-                contig = despace(first_lines[1])
-                if contig:
-                    yield contig                
-                else:
-                    # we were all set for something standard, but no
-                    logging.error("Don't recognise format of file")
-                    return
-
-                # consume the rest of the first record                    
-                try:
-                    separator = next(file)                
-                    quality = next(file)
-                except StopIteration:
-                    # that's an early stop
-                    return
-
-    if all_data:
-        for line in file:
-            contig = despace(line)
-            if contig:
-                yield contig
-    elif not fastq:
-        # fasta
-        for line in file:
-            if not line.startswith('>'):
-                contig = despace(line)
-                if contig:
-                    yield contig
-    else:
-        # fastq
-        try:
-            while True:
-                description = next(file)
-                sequence = next(file)
-                separator = next(file)
-                quality = next(file)
-
-                contig = despace(sequence)
-                yield contig
-        except StopIteration:
-            pass
-
-
-def convertToRNA(sequence):
-    return sequence.upper().replace('T','U')
-
-def normalisedRNA(file):
-    return ''.join(convertToRNA(line) for line in extractSequences(file))
-
-
-
-def rnaCrickMatch(base1, base2):
-    return base1 == 'C' and base2 == 'G' or base1 == 'G' and base2 == 'C' or base1 == 'A' and base2 == 'U' or base1 == 'U' and base2 == 'A'
-
-def dnaCrickMatch(base1, base2):
-    return base1 == 'C' and base2 == 'G' or base1 == 'G' and base2 == 'C' or base1 == 'A' and base2 == 'T' or base1 == 'T' and base2 == 'A'
-
-
-def findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=None):
-    matches = []
-    line_length = len(line)
-    for start in range(line_length - min_length + 1):
-        max_available_length = min(line_length - start, max_length)
-        for length in range(min_length, max_available_length + 1):
-            substring = line[start:start+length]
-            if all(character in 'ACUG' for character in substring):
-                start_match = substring[:end_base_pairs]
-                end_match = substring[-end_base_pairs:][::-1]
-
-                if all(rnaCrickMatch(base1, base2) for base1, base2 in zip(start_match, end_match)):
-                    matches.append(substring)
-                    if max_matches and len(matches) >= max_matches:
-                        return matches
-            else:
-                # if all characters are not legal now, they won't be when we extend the string
-                break
-
-
-    return matches
-
-
-
-def generatePossibleSubsequences(filenames, end_base_pairs, min_length, max_length, all_combinations=True):
+def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, max_length, all_combinations=True):
     """
     Python version of parser4auto.cpp. 
     Emit all substrings of between minLength and maxLength characters from lines in filenames 
@@ -340,43 +219,47 @@ def generatePossibleSubsequences(filenames, end_base_pairs, min_length, max_leng
     """
 
     output_filenames = []
-    parsed_sequences = set()
     output_counter = 1
 
+    number_processes = Runner.max_processes()
+    number_files = len(filenames)
+
+    # we want at least two files per process to smooth out the load, but we don't want to 
+    # generate more than, say 2000 files
+
+    total_files = float(number_files)
+    split_level = 0
+
+    while total_files / number_processes < 2 and total_files < 2000:
+        split_level += 1
+        total_files *= 4
+
+
+    logging.info("We are going to split the files to the %dth-level" % split_level)
+
+    if not all_combinations:
+        one_only = ['-1']
+    else:
+        one_only = []
+
+    rnaSequences = generateRNACombinations(split_level)
+    commands = []
     for filename in filenames:
-
-        try:
-            fasta_file = flexibleOpen(filename)
-        except (OSError, IOError) as error:
-            logging.error("Could not open %s" % filename)
-            return False
-
-        if all_combinations:
-            max_matches = None
-        else:
-            max_matches = 1
-
-        for line in extractSequences(fasta_file):
-            line = convertToRNA(line)
-
-            for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
-                parsed_sequences.add(result)
-
-        fasta_file.close()
-
-        if not parsed_sequences:
-            continue
-
         output_filename = "%s.%s" % (Runner.map_file_to_output_directory(filename), output_counter)
-        try:
-            with open(output_filename,'w') as output_file:
-                for sequence in parsed_sequences:
-                    output_file.write("%s\n" % sequence)
-        except (IOError, OSError) as error:
-            logging.error("Problems trying to create %s: %s" % (output_filename, error))
-            return False
 
-        output_filenames.append(output_filename)
+        command = ['foldingsubsequences.py', '-b', str(end_base_pairs), '-m', str(min_length),
+        '-x', str(max_length), '-o', output_filename, '-s', str(split_level)] + one_only + [filename]
+
+        commands.append(command)
+        if split_level == 0:
+            output_filenames.append(output_filename)
+        else:
+            output_filenames.extend("%s.%s" % (output_filename, suffix) for suffix in rnaSequences)
+
+    if not Runner.Runner.multi_run(commands, buffer_size=16384):
+        logging.error("Some part of the subsequence generation failed")
+        return False
+    
 
     return output_filenames
 
@@ -384,22 +267,26 @@ def generatePossibleSubsequences(filenames, end_base_pairs, min_length, max_leng
 
 def runNewcyk(filenames, probabilities_filename):
     output_filenames = []
+    commands = []
     for filename in filenames:
         output_filename = Runner.runCommand('newcyk2', filename, [probabilities_filename], 'grm')
         if output_filename:
             output_filenames.append(output_filename)
 
-    # merge the outputs
-    output_filename = Runner.map_file_to_output_directory('combined.grm')
-    command = ['cat'] + output_filenames
-    logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
-    output_file = open(output_filename,'w')
-    exit_code = subprocess.call(command, stdout=output_file)
-    output_file.close()
-    logging.info("Finished catting %s into %s" % (', '.join(output_filenames), output_filename))
-    if exit_code != 0:
-        logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
-        return None
+    if len(output_filenames) > 1:
+        # merge the outputs
+        output_filename = Runner.map_file_to_output_directory('combined.grm')
+        command = ['cat'] + output_filenames
+        logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
+        output_file = open(output_filename,'w')
+        exit_code = subprocess.call(command, stdout=output_file)
+        output_file.close()
+        logging.info("Finished catting %s into %s" % (', '.join(output_filenames), output_filename))
+        if exit_code != 0:
+            logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
+            return None
+    else:
+        output_filename = output_filenames[0]
 
     return output_filename
 
@@ -784,6 +671,9 @@ def main(args):
 
     Runner.OutputDirectory = os.path.expanduser(parameters.output_directory)
 
+    if not os.path.exists(Runner.OutputDirectory):
+        logging.info("Creating %s" % Runner.OutputDirectory)
+        os.makedirs(Runner.OutputDirectory)
 
     logging.info("Max processes that will be used: %s" % Runner.max_processes())
 
@@ -798,7 +688,7 @@ def main(args):
 
     start_time = time.time()
 
-    parsed_filenames = generatePossibleSubsequences(full_filenames, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
+    parsed_filenames = generatePossibleSubsequencesWrapper(full_filenames, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
 
     if not parsed_filenames:
         logging.error("Couldn't parse sequences from %s." % ', '.join(parameters.sequences))
