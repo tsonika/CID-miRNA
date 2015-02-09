@@ -163,13 +163,18 @@ class Runner(object):
 
             if command in NeedPreload:
                 ld_library_path = script_path
-            command = os.path.join(script_path, command)
+            full_command = [os.path.join(script_path, command)]
+            if command.endswith('.py'):
+                # prefix the python executable that we are using
+                full_command.insert(0, sys.executable)
+        else:
+            full_command = [command]
 
         environment = dict(os.environ)
         if ld_library_path:
             environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
 
-        return command, environment
+        return full_command, environment
 
     @classmethod
     def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
@@ -182,9 +187,9 @@ class Runner(object):
 
         output_filename = "%s.%s" % (cls.map_file_to_output_directory(filename), output_extension)
         if manual_parameters:
-            full_command = [command] + parameters
+            full_command = command + parameters
         else:
-            full_command = [command, filename] + parameters
+            full_command = command + [filename] + parameters
 
         if output_is_stdout:
             piped_output = output_filename
@@ -203,8 +208,9 @@ class Runner(object):
     @classmethod
     def multi_run(cls, commands, local=True):
         for command in commands:
+            # patch command if it needs patching
             binary, environment = cls.get_command_and_environment(command[0], local=local)
-            command[0] = binary
+            command[0:1] = binary
 
         return cls.Runner.multi_run(commands, environment, buffer_size=16384)
 
