@@ -106,6 +106,10 @@ class StandardRunner(object):
 
 
 class Runner(object):
+    """
+    Class/Singleton that makes it easier to configure what method is used to run external programs
+    and where the output should go
+    """
 
     Runner = StandardRunner()
     MaxProcesses = None
@@ -132,7 +136,7 @@ class Runner(object):
 
 
 
-        output_filename = "%s.%s" % (filename, output_extension)
+        output_filename = "%s.%s" % (cls.map_file_to_output_directory(filename), output_extension)
         if manual_parameters:
             full_command = [command] + parameters
         else:
@@ -156,11 +160,17 @@ class Runner(object):
         return output_filename
 
     @classmethod
+    def map_file_to_output_directory(cls, filename):
+        return os.path.join(cls.OutputDirectory, os.path.basename(filename))
+
+
+    @classmethod
     def max_processes(cls):
         if cls.MaxProcesses:
             return cls.MaxProcesses
         else:
             return cls.Runner.max_processes()
+
 
 
 def flexibleOpen(filename):
@@ -357,7 +367,7 @@ def generatePossibleSubsequences(filenames, end_base_pairs, min_length, max_leng
         if not parsed_sequences:
             continue
 
-        output_filename = "%s.%s" % (filename, output_counter)
+        output_filename = "%s.%s" % (Runner.map_file_to_output_directory(filename), output_counter)
         try:
             with open(output_filename,'w') as output_file:
                 for sequence in parsed_sequences:
@@ -380,11 +390,13 @@ def runNewcyk(filenames, probabilities_filename):
             output_filenames.append(output_filename)
 
     # merge the outputs
-    output_filename = os.path.join(Runner.OutputDirectory, 'combined.grm')
+    output_filename = Runner.map_file_to_output_directory('combined.grm')
     command = ['cat'] + output_filenames
+    logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
     output_file = open(output_filename,'w')
     exit_code = subprocess.call(command, stdout=output_file)
     output_file.close()
+    logging.info("Finished catting %s into %s" % (', '.join(output_filenames), output_filename))
     if exit_code != 0:
         logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
         return None
@@ -397,7 +409,7 @@ def runCutoffPassscore(filename, score):
 
 
 def convertToFasta(filename):
-    output_filename = "%s.fasta" % filename
+    output_filename = "%s.fasta" % Runner.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -434,7 +446,7 @@ def grammarToRFold(filename):
 
     """
 
-    output_filename = "%s.4rfold" % filename
+    output_filename = "%s.4rfold" % Runner.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename,'w')
@@ -534,7 +546,7 @@ def mergeLoops(filename):
     'straighten' the other ones out
     """
 
-    output_filename = "%s.mloops" % filename
+    output_filename = "%s.mloops" % Runner.map_file_to_output_directory(filename)
 
     divergent_loops = re.compile(r'\).*.\(')
 
@@ -576,7 +588,7 @@ def structuresToDiagrams(filename):
     """
     Draw diagrams for a file of dot-bracket structures 
     """
-    output_filename = "%s.diags" % filename
+    output_filename = "%s.diags" % Runner.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename,'w')
@@ -606,7 +618,7 @@ def filterOnScores(filename, cutoff_score):
     Filter all structures below the cutoff_score out
     """
 
-    output_filename = "%s.pass" % filename
+    output_filename = "%s.pass" % Runner.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -642,7 +654,7 @@ def filterOnScores(filename, cutoff_score):
 
 
 def structuresToFasta(filename):
-    output_filename = "%s.fasta" % filename
+    output_filename = "%s.fasta" % Runner.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
