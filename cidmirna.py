@@ -152,12 +152,7 @@ class Runner(object):
     OutputDirectory = '.'
 
     @classmethod
-    def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
-
-        """
-        Standard command run wrapper.
-        """
-
+    def get_command_and_environment(cls, command, local=True):
         ld_library_path = None
         if local:
             script_path = os.path.dirname(__file__)
@@ -170,7 +165,20 @@ class Runner(object):
                 ld_library_path = script_path
             command = os.path.join(script_path, command)
 
+        environment = dict(os.environ)
+        if ld_library_path:
+            environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
 
+        return command, environment
+
+    @classmethod
+    def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
+
+        """
+        Standard command run wrapper.
+        """
+
+        command, environment = cls.get_command_and_environment(command, local=local)
 
         output_filename = "%s.%s" % (cls.map_file_to_output_directory(filename), output_extension)
         if manual_parameters:
@@ -184,16 +192,21 @@ class Runner(object):
             full_command.append(output_filename)
             piped_output = None
 
-        environment = dict(os.environ)
-        if ld_library_path:
-            environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
-
         exit_code = cls.Runner.run(full_command, output_filename=piped_output, 
             input_filename=input_filename, environment=environment)
         if exit_code != 0:
             return False
 
         return output_filename        
+
+
+    @classmethod
+    def multi_run(cls, commands, local=True):
+        for command in commands:
+            binary, environment = cls.get_command_and_environment(command[0], local=local)
+            command[0] = binary
+
+        return cls.Runner.multi_run(commands, environment, buffer_size=16384)
 
 
     @classmethod
@@ -247,7 +260,7 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
     for filename in filenames:
         output_filename = "%s.%s" % (Runner.map_file_to_output_directory(filename), output_counter)
 
-        command = ['foldingsubsequences.py', '-b', str(end_base_pairs), '-m', str(min_length),
+        command = ['findsubsequences.py', '-b', str(end_base_pairs), '-m', str(min_length),
         '-x', str(max_length), '-o', output_filename, '-s', str(split_level)] + one_only + [filename]
 
         commands.append(command)
@@ -256,7 +269,7 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
         else:
             output_filenames.extend("%s.%s" % (output_filename, suffix) for suffix in rnaSequences)
 
-    if not Runner.Runner.multi_run(commands, buffer_size=16384):
+    if not Runner.multi_run(commands):
         logging.error("Some part of the subsequence generation failed")
         return False
     
@@ -269,9 +282,14 @@ def runNewcyk(filenames, probabilities_filename):
     output_filenames = []
     commands = []
     for filename in filenames:
-        output_filename = Runner.runCommand('newcyk2', filename, [probabilities_filename], 'grm')
-        if output_filename:
-            output_filenames.append(output_filename)
+        output_filename = '%s.grm' % Runner.map_file_to_output_directory(filename)
+        command = ['newcyk2', filename, probabilities_filename, output_filename]
+        output_filenames.append(output_filename)
+        commands.append(command)
+
+    if not Runner.multi_run(commands, local=True):
+        logging.error("Some problem with newcyk2")
+        return False
 
     if len(output_filenames) > 1:
         # merge the outputs
