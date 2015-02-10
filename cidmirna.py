@@ -59,6 +59,21 @@ NeedPreload = ['newcyk2']
 #
 #--------------------------------------------------------------------------------------------------------------------------
 
+class Command(list):
+    """
+    Wafer-thin wrapper around a list so that we can specify an output, an error and an input
+    """
+    def __init__(self, *args, **kwargs):
+        output = kwargs.pop('output', None)
+        error = kwargs.pop('error', None)
+        input = kwargs.pop('input', None)
+        list.__init__(self, *args, **kwargs)
+        self.input = input
+        self.error = error
+        self.output = output
+
+
+
 class StandardRunner(object):
     DefaultPollingPeriod = 30
 
@@ -73,12 +88,17 @@ class StandardRunner(object):
             'close_fds' : True
         }
 
+        output_filename = output_filename or getatttr(command, 'output', None)
         if output_filename:
             output_file = open(output_filename, 'w')
             parameters['stdout'] = output_file
+
+        input_filename = input_filename or getattr(command, 'input', None)
         if input_filename:
             input_file = open(input_filename)
             parameters['stdin'] = input_file
+
+        error_filename = error_filename or getattr(command, 'error', None)
         if error_filename:
             if error_filename != output_filename:
                 error_file = open(error_filename, 'w')
@@ -240,6 +260,7 @@ class Runner(object):
             command[0:1] = binary
 
         return cls.Runner.multi_run(commands, environment=environment, max_simultaneous=cls.MaxProcesses)
+
 
 
     @classmethod
