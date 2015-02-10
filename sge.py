@@ -9,8 +9,6 @@ import subprocess
 import time
 import re
 
-import asyncproc
-
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
 
 def quote(s):
@@ -73,13 +71,13 @@ class SGE(object):
             parameters['env'] = environment
 
         if sync:
-            logging.debug("Calling %s" % ' '.join(sge_command))
+            logging.info("Calling %s" % ' '.join(sge_command))
             exit_code = subprocess.call(sge_command, **parameters)
-            logging.debug("Finished running %s with exit code %s" % (" ".join(sge_command), exit_code))
+            logging.info("Finished running %s with exit code %s" % (" ".join(sge_command), exit_code))
             return exit_code
         else:
             try:
-                logging.debug("Calling (async) %s" % ' '.join(sge_command))
+                logging.info("Calling (async) %s" % ' '.join(sge_command))
                 output = subprocess.check_output(sge_command, **parameters)
             except subprocess.CalledProcessError:
                 return -1
@@ -90,10 +88,11 @@ class SGE(object):
                     logging.error("Submitted %s to SGE, but didn't get a job ID. Got %s" % (' '.join(command), output))
                     return -1
                 else:
+                    logging.info("SGE process ID: %s" % job_id)
                     return job_id
 
 
-    def runCommands(self, commands, queue=None, polling_period=None, environment=None):
+    def multi_run(self, commands, queue=None, polling_period=None, environment=None):
         """
         Run and wait for commands to finish. Return if they all succeeded
         commands should be a list of commands, each of which is an iterable
@@ -105,45 +104,59 @@ class SGE(object):
         if queue is None:
             queue = self.queue
 
-        processes = set()
+        processes = {}
 
-        parameters = {
-            'close_fds' : True,
-            'stdin' : None,
-            'stdout' : subprocess.PIPE,
-            'stderr' : subprocess.PIPE
-        }
-
-        if environment:
-            parameters['env'] = environment
-
-
-        for command in commands:
-            sge_command = self.wrap(command, queue=queue)
-            process = asyncproc.Process(sge_command, **parameters)
-            processes.add(process)
-        
         allOK = True
-        while True:
-            for process in list(processes):
-                output = process.read()
-                if output:
-                    logging.info("Process %s out: %s" % (process.pid(), output))
-                error = process.readerr()
-                if error:
-                    logging.info("Process %s err: %s" % (process.pid(), error))
-                exit_code = process.wait(os.WNOHANG) # check if we are done
-                if exit_code is not None:
-                    processes.remove(process)
-                    if exit_code != 0:
-                        logging.error("Process %s exited with code %s" % (process.pid(), exit_code))
-                        allOK = False
-            if not processes:
+        for command in commands:
+            sge_process_id = self.run(command, queue=queue, sync=False, environment=environment)
+            if sge_process_id < 0:
+                allOK = False
                 break
-            time.sleep(polling_period)
+            processes[sge_process_id] = command
+        
+        if allOK:
+            while True:
+                for process_id, command in processes.items():
+                    exit_code = self.get_exit_code(process_id)
+                    if exit_code is not None:
+                        if exit_code != 0:
+                            logger = logging.error
+                            allOK = False
+                        else:
+                            logger = logging.info
+
+                        logger("'%s' exited with code %s" % (' '.join(command), exit_code))
+
+                        del processes[process_id]
+                if not processes:
+                    break
+                time.sleep(polling_period)
 
         return allOK
 
+
+    def get_exit_code(self, job_id):
+        """
+        Get the exit code for an SGE job id
+        """
+
+        command = ['qacct', '-j', str(job_id)]
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT, close_fds=True)
+        except subprocess.CalledProcessError:
+            # process didn't exist
+            return None
+        else:
+            for line in output.splitlines():
+                if line.startswith('exit_status'):
+                    parts = line.split()
+                    try:
+                        exit_code = int(parts[-1].strip())
+                    except ValueError:
+                        logging.error("Looking for exit code for SGE process %s, got %s" % (job_id, line))
+                        return None
+                    else:
+                        return exit_code
 
     def wrap(self, command, sync=True, name=None, queue=None, output_filename=None, error_filename=None,
         input_filename=None):

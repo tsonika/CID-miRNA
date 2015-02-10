@@ -96,7 +96,7 @@ class StandardRunner(object):
         return exit_code
 
 
-    def multi_run(self, commands, environment=None, buffer_size=None):
+    def multi_run(self, commands, environment=None, buffer_size=16384):
         """
         Run commands and wait for them to finish
         """
@@ -212,7 +212,7 @@ class Runner(object):
             binary, environment = cls.get_command_and_environment(command[0], local=local)
             command[0:1] = binary
 
-        return cls.Runner.multi_run(commands, environment, buffer_size=16384)
+        return cls.Runner.multi_run(commands, environment=environment)
 
 
     @classmethod
