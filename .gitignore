@@ -1,2 +1,5 @@
 logs/*
+bin/cutoffpassscore
+bin/Scores4mStruct
+src/*.o
 
