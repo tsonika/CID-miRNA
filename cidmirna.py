@@ -422,9 +422,9 @@ def keepOneLoop(structure):
 
     
     loop_centres = []
-    halfway = len(structure) / 2
+    halfway = len(structure) // 2
     for match in loop_centre.finditer(structure):
-        loop_centre = (match.start() + match.end()) / 2
+        loop_centre = (match.start() + match.end()) // 2
         loop_centres.append((abs(halfway - loop_centre), loop_centre))
 
     closest_to_centre = min(loop_centres)
