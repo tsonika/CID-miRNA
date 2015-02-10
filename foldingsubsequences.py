@@ -51,8 +51,6 @@ def generatePossibleSubsequences(input_filename, output_filename, end_base_pairs
     where the endBasePairs pairs at either end match with each other (Watson-Crick style)
     """
 
-    parsed_sequences = set()
-
     try:
         fasta_file = flexibleOpen(input_filename)
     except (OSError, IOError) as error:
@@ -64,30 +62,18 @@ def generatePossibleSubsequences(input_filename, output_filename, end_base_pairs
     else:
         max_matches = 1
 
-    for line in extractSequences(fasta_file):
-        line = convertToRNA(line)
 
-        for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
-            parsed_sequences.add(result)
-
-    fasta_file.close()
-
-    if not parsed_sequences:
-        return True
-
+    # Open output files
+    file_mapper = {}
     if split_level == 0:
         try:
-            with open(output_filename,'w') as output_file:
-                for sequence in parsed_sequences:
-                    output_file.write("%s\n" % sequence)
+            file_mapper[''] = open(output_filename,'w')
         except (IOError, OSError) as error:
             logging.error("Problems trying to create %s: %s" % (output_filename, error))
             return False
     else:
 
         # Split the sequences based on their split_level starting bases
-
-        file_mapper = {}
         prefices = generateRNACombinations(split_level)
 
         for prefix in prefices:
@@ -95,12 +81,18 @@ def generatePossibleSubsequences(input_filename, output_filename, end_base_pairs
             file_mapper[prefix] = output_file
 
 
-        for sequence in parsed_sequences:
-            file_mapper[sequence[:split_level]].write("%s\n" % sequence)
+    for line in extractSequences(fasta_file):
+        line = convertToRNA(line)
+
+        for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
+            file_mapper[result[:split_level]].write("%s\n" % result)
+
+    fasta_file.close()
+
+    for output_file in file_mapper.values():
+        output_file.close()
 
 
-        for output_file in file_mapper.values():
-            output_file.close()
 
     return True
 
