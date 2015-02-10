@@ -299,7 +299,22 @@ def runNewcyk(filenames, probabilities_filename):
 
     if len(output_filenames) > 1:
         # merge the outputs
-        output_filename = Runner.map_file_to_output_directory('combined.grm')
+
+        # try to get a reasonable name for the combined file
+
+        basenames = [os.path.basename(filename) for filename in output_filenames]
+        prefix = []
+        candidate = basenames[0]
+        for index, letter in enumerate(candidate):
+            if all(letter == other[index] for other in basenames):
+                prefix.append(letter)
+            else:
+                break
+
+        if prefix and prefix[-1] != '.':
+            prefix.append('.')
+
+        output_filename = Runner.map_file_to_output_directory('%scombined.grm' % ''.join(prefix))
         command = ['cat'] + output_filenames
         logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
         output_file = open(output_filename,'w')
@@ -630,8 +645,8 @@ def main(args):
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("-v", "--verbose", dest="verbosity", default=0, action="count",
                       help="Verbosity.  Invoke many times for higher verbosity")
-    parser.add_argument("-t", "--train", dest="train", default=False, action="store_true",
-                      help="Train model")
+    parser.add_argument('-o', '--output-directory', dest="output_directory", default=Runner.OutputDirectory,
+        help="""Where to store all the output (default: %(default)s)""")
     parser.add_argument("-dG", "--upper-dg", dest="upperDGCutoff", type=float, default=DefaultUpperDGCutoff,
         help="Upper dG cutoff value (default: %(default)s)")
     parser.add_argument("-b", "--end-base-pairs", dest="endBasePairs", type=int, default=DefaultEndBasePairs,
@@ -660,8 +675,6 @@ def main(args):
         help="Redirect SGE log output to this directory")
     parser.add_argument('--max-processes', dest="max_processes", default=None, type=int,
         help="""Maximum number of parallel processes to use. By default, it will be the number of CPU threads if not using SGE, or the number of slots in the queue if using SGE. If using SGE, but not specifying a queue, it is recommended that you pass this parameter""")
-    parser.add_argument('-o', '--output-directory', dest="output_directory", default=Runner.OutputDirectory,
-        help="""Where to store all the output (default: %(default)s)""")
 
 
     parser.add_argument("sequences", nargs="+",
