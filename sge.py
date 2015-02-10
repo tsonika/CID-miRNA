@@ -92,7 +92,7 @@ class SGE(object):
                     return job_id
 
 
-    def multi_run(self, commands, queue=None, polling_period=None, environment=None):
+    def multi_run(self, commands, queue=None, polling_period=None, environment=None, max_simultaneous=None):
         """
         Run and wait for commands to finish. Return if they all succeeded
         commands should be a list of commands, each of which is an iterable

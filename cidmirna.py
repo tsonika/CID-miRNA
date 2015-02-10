@@ -13,7 +13,7 @@ import re
 import time
 
 from mirnastructure import diagramFromStructure
-from foldingsubsequences import generatePossibleSubsequences, DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
+from foldingsubsequences import DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
 from utils import generateRNACombinations
 
 DefaultUpperDGCutoff = -13.559
@@ -60,6 +60,14 @@ NeedPreload = ['newcyk2']
 #--------------------------------------------------------------------------------------------------------------------------
 
 class StandardRunner(object):
+    DefaultPollingPeriod = 30
+
+    def __init__(self, polling_period=None):
+        if polling_period is not None:
+            self.polling_period = polling_period
+        else:
+            self.polling_period = self.DefaultPollingPeriod
+
     def run(self, command, output_filename=None, error_filename=None, input_filename=None, environment=None):
         parameters = {
             'close_fds' : True
@@ -96,10 +104,12 @@ class StandardRunner(object):
         return exit_code
 
 
-    def multi_run(self, commands, environment=None, buffer_size=16384):
+    def multi_run(self, commands, environment=None, max_simultaneous=None, buffer_size=16384):
         """
         Run commands and wait for them to finish
         """
+        import asyncproc
+
         parameters = {
             'close_fds' : True,
             'stderr' : subprocess.PIPE
@@ -113,24 +123,41 @@ class StandardRunner(object):
             parameters['bufsize'] = buffer_size
 
         processes = {}
-        for command in commands:
-            logging.info("Running %s" % " ".join(command))
-            process = subprocess.Popen(command, **parameters)
-            processes[process] = command
-            
+        while True:
+            finished_in_cycle = False
 
-        for process, command in processes.items():
-            _, stderrdata = process.communicate()
+            while commands and ((max_simultaneous is None) or (len(processes) < max_simultaneous)):
+                # we can generate more
+                command = commands.pop()
+                logging.info("Running %s" % " ".join(command))
+                process = asyncproc.Process(command, **parameters)
+                processes[process] = command
 
-            if process.returncode == 0:
-                logger = logging.info
-            else:
-                logger = logging.error
-                success = False
+            for process, command in processes.items():
+                error = process.readerr()
+                if error:
+                    logging.info("Process %s err: %s" % (process.pid(), error))
 
-            logger("Finished running %s with exit code %s" % (" ".join(command), process.returncode))
-            if stderrdata:
-                logging.error("%s output to stderr: %s" % (" ".join(command), stderrdata))
+                exit_code = process.wait(os.WNOHANG) # check if we are done
+                if exit_code is not None:
+                    finished_in_cycle = True
+                    del processes[process]
+                    if exit_code != 0:
+                        logger = logging.error
+                        success = False
+                    else:
+                        logger = logging.info
+                    logger("'%s' exited with code %s" % (' '.join(command), exit_code))
+
+            # if there's nothing left, quit
+
+            if not commands and not processes:
+                break
+
+            # if nothing finished, sleep for a while, otherwise go for more
+            if not finished_in_cycle:
+                time.sleep(self.polling_period)
+
 
         return success
 
@@ -212,7 +239,7 @@ class Runner(object):
             binary, environment = cls.get_command_and_environment(command[0], local=local)
             command[0:1] = binary
 
-        return cls.Runner.multi_run(commands, environment=environment)
+        return cls.Runner.multi_run(commands, environment=environment, max_simultaneous=cls.MaxProcesses)
 
 
     @classmethod
