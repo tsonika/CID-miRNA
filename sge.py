@@ -48,6 +48,10 @@ class SGE(object):
         failed
         """
 
+        output_filename = output_filename or getattr(command, 'output', None)
+        input_filename = input_filename or getattr(command, 'input', None)
+        error_filename = error_filename or getattr(command, 'error', None)
+
         sge_command = self.wrap(command, sync=sync, queue=queue, name=name, output_filename=output_filename,
             error_filename=error_filename, input_filename=input_filename)
 

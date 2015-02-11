@@ -88,7 +88,7 @@ class StandardRunner(object):
             'close_fds' : True
         }
 
-        output_filename = output_filename or getatttr(command, 'output', None)
+        output_filename = output_filename or getattr(command, 'output', None)
         if output_filename:
             output_file = open(output_filename, 'w')
             parameters['stdout'] = output_file
@@ -149,18 +149,62 @@ class StandardRunner(object):
             while commands and ((max_simultaneous is None) or (len(processes) < max_simultaneous)):
                 # we can generate more
                 command = commands.pop()
-                logging.info("Running %s" % " ".join(command))
-                process = asyncproc.Process(command, **parameters)
-                processes[process] = command
+                message_parts = ["Running '%s'" % " ".join(command)]
 
-            for process, command in processes.items():
-                error = process.readerr()
-                if error:
-                    logging.info("Process %s err: %s" % (process.pid(), error))
+                output_filename = getattr(command, 'output', None)
+                input_filename = getattr(command, 'input', None)
+                error_filename = getattr(command, 'error', None)
+                
+                if input_filename:
+                    input_file = open(input_filename)
+                    parameters['stdin'] = input_file
+                    message_parts.append(' input from %s' % input_filename)
+                else:
+                    input_file = None
+
+                if output_filename:
+                    output_file = open(output_filename, 'w')
+                    parameters['stdout'] = output_file
+                    message_parts.append(' output to %s' % output_filename)
+                else:
+                    output_file = None
+
+                if error_filename:
+                    message_parts.append(' error to %s' % error_filename)
+                    if error_filename != output_filename:
+                        error_file = open(error_filename, 'w')
+                    else:
+                        error_file = output_file
+
+                    parameters['stderr'] = error_file
+                else:
+                    error_file = None
+
+                logging.info(' '.join(message_parts))
+                process = asyncproc.Process(command, **parameters)
+                processes[process] = (command, input_file, output_file, error_file)
+
+            for process, command_details in processes.items():
+                if command_details[-1] is None:
+                    # if we are not piping stderr to a file, read it and log it
+                    error = process.readerr()
+                    if error:
+                        logging.info("Process %s err: %s" % (process.pid(), error))
 
                 exit_code = process.wait(os.WNOHANG) # check if we are done
                 if exit_code is not None:
+                    command, input_file, output_file, error_file = command_details
+                    if input_file is not None:
+                        input_file.close()
+
+                    if output_file is not None:
+                        output_file.close()
+
+                    if error_file is not None and not error_file.closed:
+                        error_file.close()
+
                     finished_in_cycle = True
+
                     del processes[process]
                     if exit_code != 0:
                         logger = logging.error
