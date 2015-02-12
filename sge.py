@@ -9,7 +9,7 @@ import subprocess
 import time
 import re
 
-from runner import Runner
+from runner import Runner, Command
 
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
 
@@ -131,7 +131,7 @@ class SGE(Runner):
                         else:
                             logger = logging.info
 
-                        logger("'%s' exited with code %s" % (' '.join(command), exit_code))
+                        logger("'%s' exited with code %s" % (' '.join(argument if argument is not Command.PIPE_MARKER else '|' for argument in command), exit_code))
 
                         del processes[process_id]
                 if not processes:

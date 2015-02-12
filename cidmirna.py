@@ -204,6 +204,22 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
     return output_filenames
 
 
+def runUnique(filenames):
+    output_filenames = []
+    commands = []
+    for filename in filenames:
+        output_filename = '%s.uniq' % Configuration.map_file_to_output_directory(filename)
+        command = Command(['sort', filename, Command.PIPE_MARKER, 'uniq'], output=output_filename)
+        output_filenames.append(output_filename)
+        commands.append(command)
+
+    if not Configuration.multi_run(commands, local=False):
+        logging.error("Some problem with uniquifying")
+        return False
+
+    return output_filenames
+
+
 
 def runNewcyk(filenames, probabilities_filename):
     output_filenames = []
@@ -652,9 +668,14 @@ def main(args):
         logging.error("Couldn't parse sequences from %s." % ', '.join(parameters.sequences))
         return 1
 
-    grammar_filename = runNewcyk(parsed_filenames, parameters.probabilitiesFilename)
+    uniqued_filenames = runUnique(parsed_filenames)
+    if not uniqued_filenames:
+        logging.error("Couldn't make unique versions of %s" % ', '.join(parsed_filenames))
+        return 1
+
+    grammar_filename = runNewcyk(uniqued_filenames, parameters.probabilitiesFilename)
     if not grammar_filename:
-        logging.error("Grammar run failed on %s" % ', '.join(parsed_filenames))
+        logging.error("Grammar run failed on %s" % ', '.join(uniqued_filenames))
         return 1
 
     cutoff_filename = runCutoffPassscore(grammar_filename, parameters.grammarCutoff)
