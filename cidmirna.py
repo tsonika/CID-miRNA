@@ -381,7 +381,7 @@ def keepOneLoop(structure):
     structure = straightenLoopsBefore(structure, centre_loop, ')', '(')
     # Now forwards, by reversing the structure
     structure = structure[::-1]
-    structure = straightenLoopsBefore(structure, centre_loop, '(', ')')
+    structure = straightenLoopsBefore(structure, len(structure) - centre_loop - 1, '(', ')')
     structure = structure[::-1]
 
     return structure
