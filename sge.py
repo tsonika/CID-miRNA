@@ -9,6 +9,8 @@ import subprocess
 import time
 import re
 
+from runner import Runner
+
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
 
 def quote(s):
@@ -27,7 +29,7 @@ def quote(s):
 
 
 
-class SGE(object):
+class SGE(Runner):
     MaxProcessesNoQueue = 10
     DefaultPollingPeriod = 30
 
@@ -192,7 +194,13 @@ class SGE(object):
         if input_filename:
             sge_command.extend(['-i', input_filename])
 
-        sge_command.extend(quote(argument) for argument in command)
+
+        chain = self.split_commands(command)
+        # manual list joined by '|'
+        for process_command in chain[:-1]:
+            sge_command.extend([quote(argument) for argument in process_command])
+            sge_command.append('|')
+        sge_command.extend([quote(argument) for argument in chain[-1]])
         return sge_command
 
 

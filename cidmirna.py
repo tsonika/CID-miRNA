@@ -61,7 +61,7 @@ NeedPreload = ['newcyk2']
 #--------------------------------------------------------------------------------------------------------------------------
 
 
-class Runner(object):
+class Configuration(object):
     """
     Class/Singleton that makes it easier to configure what method is used to run external programs
     and where the output should go
@@ -161,7 +161,7 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
     output_filenames = []
     output_counter = 1
 
-    number_processes = Runner.max_processes()
+    number_processes = Configuration.max_processes()
     number_files = len(filenames)
 
     # we want at least two files per process to smooth out the load, but we don't want to 
@@ -185,7 +185,7 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
     rnaSequences = generateRNACombinations(split_level)
     commands = []
     for filename in filenames:
-        output_filename = "%s.%s" % (Runner.map_file_to_output_directory(filename), output_counter)
+        output_filename = "%s.%s" % (Configuration.map_file_to_output_directory(filename), output_counter)
 
         command = ['findsubsequences.py', '-b', str(end_base_pairs), '-m', str(min_length),
         '-x', str(max_length), '-o', output_filename, '-s', str(split_level)] + one_only + [filename]
@@ -196,7 +196,7 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
         else:
             output_filenames.extend("%s.%s" % (output_filename, suffix) for suffix in rnaSequences)
 
-    if not Runner.multi_run(commands):
+    if not Configuration.multi_run(commands):
         logging.error("Some part of the subsequence generation failed")
         return False
     
@@ -209,12 +209,12 @@ def runNewcyk(filenames, probabilities_filename):
     output_filenames = []
     commands = []
     for filename in filenames:
-        output_filename = '%s.grm' % Runner.map_file_to_output_directory(filename)
+        output_filename = '%s.grm' % Configuration.map_file_to_output_directory(filename)
         command = ['newcyk2', filename, probabilities_filename, output_filename]
         output_filenames.append(output_filename)
         commands.append(command)
 
-    if not Runner.multi_run(commands, local=True):
+    if not Configuration.multi_run(commands, local=True):
         logging.error("Some problem with newcyk2")
         return False
 
@@ -235,7 +235,7 @@ def runNewcyk(filenames, probabilities_filename):
         if prefix and prefix[-1] != '.':
             prefix.append('.')
 
-        output_filename = Runner.map_file_to_output_directory('%scombined.grm' % ''.join(prefix))
+        output_filename = Configuration.map_file_to_output_directory('%scombined.grm' % ''.join(prefix))
         command = ['cat'] + output_filenames
         logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
         output_file = open(output_filename,'w')
@@ -251,12 +251,12 @@ def runNewcyk(filenames, probabilities_filename):
     return output_filename
 
 def runCutoffPassscore(filename, score):
-    return Runner.runCommand('cutoffpassscore', filename, [str(score)], "cof")
+    return Configuration.runCommand('cutoffpassscore', filename, [str(score)], "cof")
 
 
 
 def convertToFasta(filename):
-    output_filename = "%s.fasta" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.fasta" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -293,7 +293,7 @@ def grammarToRFold(filename):
 
     """
 
-    output_filename = "%s.4rfold" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.4rfold" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename,'w')
@@ -322,7 +322,7 @@ def grammarToRFold(filename):
 
 
 def runRNAFold(filename):
-    output_filename = Runner.runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input_filename=filename)
+    output_filename = Configuration.runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input_filename=filename)
     return output_filename
 
 
@@ -330,7 +330,7 @@ def removeMeanFreeEnergyValues(filename):
     """
     Remove the scores produced by RNAfold
     """
-    return Runner.runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
+    return Configuration.runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
 
 
 
@@ -393,7 +393,7 @@ def mergeLoops(filename):
     'straighten' the other ones out
     """
 
-    output_filename = "%s.mloops" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.mloops" % Configuration.map_file_to_output_directory(filename)
 
     divergent_loops = re.compile(r'\).*.\(')
 
@@ -435,7 +435,7 @@ def structuresToDiagrams(filename):
     """
     Draw diagrams for a file of dot-bracket structures 
     """
-    output_filename = "%s.diags" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.diags" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename,'w')
@@ -465,7 +465,7 @@ def filterOnScores(filename, cutoff_score):
     Filter all structures below the cutoff_score out
     """
 
-    output_filename = "%s.pass" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.pass" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -501,7 +501,7 @@ def filterOnScores(filename, cutoff_score):
 
 
 def structuresToFasta(filename):
-    output_filename = "%s.fasta" % Runner.map_file_to_output_directory(filename)
+    output_filename = "%s.fasta" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -566,7 +566,7 @@ def main(args):
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("-v", "--verbose", dest="verbosity", default=0, action="count",
                       help="Verbosity.  Invoke many times for higher verbosity")
-    parser.add_argument('-o', '--output-directory', dest="output_directory", default=Runner.OutputDirectory,
+    parser.add_argument('-o', '--output-directory', dest="output_directory", default=Configuration.OutputDirectory,
         help="""Where to store all the output (default: %(default)s)""")
     parser.add_argument("-dG", "--upper-dg", dest="upperDGCutoff", type=float, default=DefaultUpperDGCutoff,
         help="Upper dG cutoff value (default: %(default)s)")
@@ -622,18 +622,18 @@ def main(args):
         else:
             sge_logs_directory = None
 
-        Runner.Runner = sge.SGE(queue=parameters.sge_queue, logs_directory=sge_logs_directory)
+        Configuration.Runner = sge.SGE(queue=parameters.sge_queue, logs_directory=sge_logs_directory)
 
     if parameters.max_processes:
-        Runner.MaxProcesses = parameters.max_processes
+        Configuration.MaxProcesses = parameters.max_processes
 
-    Runner.OutputDirectory = os.path.expanduser(parameters.output_directory)
+    Configuration.OutputDirectory = os.path.expanduser(parameters.output_directory)
 
-    if not os.path.exists(Runner.OutputDirectory):
-        logging.info("Creating %s" % Runner.OutputDirectory)
-        os.makedirs(Runner.OutputDirectory)
+    if not os.path.exists(Configuration.OutputDirectory):
+        logging.info("Creating %s" % Configuration.OutputDirectory)
+        os.makedirs(Configuration.OutputDirectory)
 
-    logging.info("Max processes that will be used: %s" % Runner.max_processes())
+    logging.info("Max processes that will be used: %s" % Configuration.max_processes())
 
     result = 0
 
@@ -693,7 +693,7 @@ def main(args):
         return 1
 
 
-    scores_filename = Runner.runCommand('Scores4mStruct', diagram_filename, [], 'scores')
+    scores_filename = Configuration.runCommand('Scores4mStruct', diagram_filename, [], 'scores')
     if not scores_filename:
         logging.error("Problems running Scores4mStruct on %s" % diagram_filename)
         return 1
