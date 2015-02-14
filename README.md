@@ -1,6 +1,6 @@
 
 #CID-miRNA:CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
-http://mirna.jnu.ac.in/cidmirna
+Web site appearing soon
 
 Please cite this article as:
 
