@@ -1,6 +1,6 @@
 
 #CID-miRNA:CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
-Web site appearing soon
+http://melb.agrf.org.au:8888/
 
 Please cite this article as:
 
@@ -8,7 +8,7 @@ Please cite this article as:
     Volume 372, Issue 4, 8 August 2008, Pages 831-834                                           
 
 
-CIDmiRNA is the tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
+CIDmiRNA is a tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
 
 It is written in Python. It runs on Python 2.7.x.
 
