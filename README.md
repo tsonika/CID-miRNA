@@ -1,5 +1,5 @@
 
-#CID-miRNA:CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
+#CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
 http://melb.agrf.org.au:8888/
 
 Please cite this article as:
