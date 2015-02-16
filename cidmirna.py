@@ -370,7 +370,7 @@ def keepOneLoop(structure):
     # We've decided on the winner, now get rid of every other loop
 
     def straightenLoopsBefore(structure, end, closes_loop, opens_loop):
-        fixed_until = end - 1
+        fixed_until = end
         while fixed_until >= 0:
             closing_loop = structure.rfind(closes_loop, 0, fixed_until)
             if closing_loop < 0:
@@ -388,7 +388,7 @@ def keepOneLoop(structure):
                     if closed == 0:
                         # all found, replace everything in between with dots
                         structure = structure[:index] + ('.' * (closing_loop - index + 1)) + structure[closing_loop+1:]
-                        fixed_until = index - 1
+                        fixed_until = index
                         break
                 index -= 1
         return structure
