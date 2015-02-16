@@ -150,6 +150,22 @@ class Configuration(object):
 
 
 
+def common_prefix(filenames):
+    """
+    Find a common prefix for a whole bunch of files. 
+    """
+
+    basenames = [os.path.basename(filename) for filename in filenames]
+    prefix = []
+    candidate = basenames[0]
+    for index, letter in enumerate(candidate):
+        if all(letter == other[index] for other in basenames):
+            prefix.append(letter)
+        else:
+            break
+
+    return ''.join(prefix)
+
 
 def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, max_length, all_combinations=True):
     """
@@ -239,19 +255,12 @@ def runNewcyk(filenames, probabilities_filename):
 
         # try to get a reasonable name for the combined file
 
-        basenames = [os.path.basename(filename) for filename in output_filenames]
-        prefix = []
-        candidate = basenames[0]
-        for index, letter in enumerate(candidate):
-            if all(letter == other[index] for other in basenames):
-                prefix.append(letter)
-            else:
-                break
+        prefix = common_prefix(output_filenames)
 
-        if prefix and prefix[-1] != '.':
-            prefix.append('.')
+        if prefix and not prefix.endswith('.'):
+            prefix += '.'
 
-        output_filename = Configuration.map_file_to_output_directory('%scombined.grm' % ''.join(prefix))
+        output_filename = Configuration.map_file_to_output_directory('%scombined.grm' % prefix)
         command = ['cat'] + output_filenames
         logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
         output_file = open(output_filename,'w')
@@ -731,7 +740,17 @@ def main(args):
         return 1
 
 
-    final_fasta_filename = "%s.final.fasta" % full_filename
+    if len(full_filenames) > 1:
+        common_name = common_prefix(full_filenames)
+        if common_name and not common_name.endswith('.'):
+            common_name += '.'
+
+        if not common_name:
+            common_name = 'combined.'
+    else:
+        common_name = full_filenames[0]
+
+    final_fasta_filename = Configuration.map_file_to_output_directory("%sfinal.fasta" % common_name)
     os.rename(fasta_filename, final_fasta_filename)
 
     end_time = time.time()
