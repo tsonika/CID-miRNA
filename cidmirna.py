@@ -533,10 +533,10 @@ def structuresToFasta(filename):
 
     for line in input_file:
         if line.startswith('>'):
-            parts = re.split(r'[>()\s+]', line)
+            parts = re.split(r'[>()\s+]', line.strip())
             locus = parts[1]
             score = parts[2]
-            normalised_score = parts[-1]
+            normalised_score = parts[-2]
 
             sequence = next(input_file).replace('U','T')
             structure_lines = []
