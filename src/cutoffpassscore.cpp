@@ -7,8 +7,8 @@
  
 using namespace std;
  
-#define MAXLEN 20000
-#define MAXPATH 1000
+#define MAXLEN 200000
+#define MAXPATH 10000
  
 char infile[MAXPATH],outfile[MAXPATH];
 double cscore;
@@ -77,7 +77,6 @@ while (!filein.eof())
                                 //Now checking if the score is valid and then writing to outputfile
                                 if (seqnscore >= cscore && seqlen >= 60)
                                         {
-//                                      cout<<inputline1<<endl<<inputline2<<endl<<inputline3<<endl<<((cslope*seqlen)+cyintercept)<<endl;
                                         fileout<<inputline1<<endl<<inputline2<<endl<<inputline3<<endl;
                                         }
                                 }
