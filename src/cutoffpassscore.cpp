@@ -24,11 +24,12 @@ if (argc < 3)
         return -1;
         }
  
-strcpy(infile,argv[1]);
+strncpy(infile,argv[1], MAXPATH-1);
+infile[MAXPATH-1] = '\0';
 cscore=atof(argv[2]);
-strcpy(outfile,argv[3]);
+strncpy(outfile,argv[3], MAXPATH-1);
+outfile[MAXPATH-1] = '\0';
  
-//cout<<cyintercept<<endl<<cslope<<endl;
 passfile();
  
 return 0;
