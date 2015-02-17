@@ -81,11 +81,12 @@ def generatePossibleSubsequences(input_filename, output_filename, end_base_pairs
             file_mapper[prefix] = output_file
 
 
-    for line in extractSequences(fasta_file):
+    for line, description in extractSequences(fasta_file):
         line = convertToRNA(line)
-
+        if description is None:
+            description = ''
         for result in findSubstringsThatMatch(line, end_base_pairs, min_length, max_length, max_matches=max_matches):
-            file_mapper[result[:split_level]].write("%s\n" % result)
+            file_mapper[result[:split_level]].write("%s,%s\n" % (result, description))
 
     fasta_file.close()
 

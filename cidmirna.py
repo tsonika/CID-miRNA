@@ -233,11 +233,11 @@ def runUnique(filenames):
     commands = []
     for filename in filenames:
         output_filename = '%s.uniq' % Configuration.map_file_to_output_directory(filename)
-        command = Command(['sort', filename, Command.PIPE_MARKER, 'uniq'], output=output_filename)
-        output_filenames.append(output_filename)
+        command = Command(['uniquesequences.py', '-vvv', '-o', output_filename, filename])
         commands.append(command)
+        output_filenames.append(output_filename)
 
-    if not Configuration.multi_run(commands, local=False):
+    if not Configuration.multi_run(commands, local=True):
         logging.error("Some problem with uniquifying")
         return False
 
@@ -246,17 +246,56 @@ def runUnique(filenames):
 
 
 def runNewcyk(filenames, probabilities_filename):
-    output_filenames = []
-    commands = []
+    """
+    Score each sequence.
+    """
+
+
+    # we need to separate the sequence from their descriptions, score the sequence, then reattach
+    # the description
+
+    separate_commands = []
+    sequence_filenames = []
+    description_filenames = []
     for filename in filenames:
-        output_filename = '%s.grm' % Configuration.map_file_to_output_directory(filename)
-        command = ['newcyk2', filename, probabilities_filename, output_filename]
-        output_filenames.append(output_filename)
+        sequence_filename = '%s.seq' % Configuration.map_file_to_output_directory(filename)
+        description_filename = '%s.desc' % Configuration.map_file_to_output_directory(filename)
+        command = ['splitsequencefromdescription.py', '-s', sequence_filename, '-d', description_filename, filename]
+
+        sequence_filenames.append(sequence_filename)
+        description_filenames.append(description_filename)
+        separate_commands.append(command)
+
+    if not Configuration.multi_run(separate_commands, local=True):
+        logging.error("Some problem separating sequences from descriptions")
+        return False
+
+    score_filenames = []
+
+    commands = []
+    for filename in sequence_filenames:
+        score_filename = '%s.score' % Configuration.map_file_to_output_directory(filename)
+        command = ['newcyk2', filename, probabilities_filename, score_filename]
+        score_filenames.append(score_filename)
         commands.append(command)
 
     if not Configuration.multi_run(commands, local=True):
         logging.error("Some problem with newcyk2")
         return False
+
+    output_filenames = []
+    join_commands = []
+    for score_filename, description_filename in zip(score_filenames, description_filenames):
+        output_filename = '%s.grm' % Configuration.map_file_to_output_directory(score_filename)
+        join_command = ['mergescoreanddescription.py', '-s', score_filename, '-d', description_filename,
+        '-o', output_filename]
+        join_commands.append(join_command)
+        output_filenames.append(output_filename)
+
+    if not Configuration.multi_run(join_commands, local=True):
+        logging.error("Some problem joining scores and descriptions")
+        return False
+
 
     if len(output_filenames) > 1:
         # merge the outputs
@@ -296,6 +335,7 @@ def convertToFasta(filename):
 
     for line in input_file:
         if 'Sequence' in line:
+            description = line[len('Sequence :'):].strip()
             sequence = next(input_file)
 
             score_line = next(input_file)
@@ -304,7 +344,7 @@ def convertToFasta(filename):
             score = bits[9]
             normalised_score = bits[6]
 
-            fasta_line = ">Predicted\tLength: %s\tScore: %s\tNormalised Score: %s\n%s" % (length, score, normalised_score, sequence)
+            fasta_line = ">Predicted\tLength: %s\tScore: %s\tNormalised Score: %s\tDescription: %s\n%s" % (length, score, normalised_score, description, sequence)
             output_file.write(fasta_line)
     output_file.close()
     input_file.close()
@@ -317,11 +357,11 @@ def grammarToRFold(filename):
     Convert FASTA to something that is recognised by RNAfold with constraints options
 
     FASTA should be in the following format:
-    >Predicted      Length: 100     Score: -60.1264 Normalised Score: -0.601264
+    >Predicted      Length: 100     Score: -60.1264 Normalised Score: -0.601264 Description: some description
     CCTTCTAGTGGCAAGAGTGACGTAAGTGATATGCGGAAATTTCTTTCCAAGCCTGCTTGGAGAAGCTTCCTCTGCCTGCTTCTCTTTGGCCACCTCCAGG
-    >Predicted      Length: 75      Score: -45.5868 Normalised Score: -0.607824
+    >Predicted      Length: 75      Score: -45.5868 Normalised Score: -0.607824 Description: some description
     GTTTTCCCTCTTATGTCCAGCAAATGCTGCATGGAGCCCTGGAATTCTATGTGGAAAGCTAGGAAGAGGGAGAGC
-    >Predicted      Length: 62      Score: -37.5368 Normalised Score: -0.605432
+    >Predicted      Length: 62      Score: -37.5368 Normalised Score: -0.605432 Description: some description
     GGGTCTTTGTGTCAATCTGAGCTCTGATGTCCACCTAGAGATTGGGTATCCACCTAAGGCCC
 
     """
@@ -339,9 +379,10 @@ def grammarToRFold(filename):
         if stripped_line.startswith('>'):
             bits = stripped_line.split()
             score = bits[4]
-            normalised_score = bits[-1]
+            normalised_score = bits[7]
+            description = ' '.join(bits[9:]).strip()
 
-            output_file.write('>Score(%s)(%s)\n' % (score, normalised_score)) 
+            output_file.write('>Score: %s\tNormalised: %s\tDescription:%s\n' % (score, normalised_score, description)) 
         else:
             output_file.write(line)
             line_length = len(line) - 1
@@ -357,14 +398,6 @@ def grammarToRFold(filename):
 def runRNAFold(filename):
     output_filename = Configuration.runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input_filename=filename)
     return output_filename
-
-
-def removeMeanFreeEnergyValues(filename):
-    """
-    Remove the scores produced by RNAfold
-    """
-    return Configuration.runCommand('gawk', filename, ['{print $1}', filename], 'nodg', output_is_stdout=True, manual_parameters=True, local=False)
-
 
 
 def keepOneLoop(structure):
@@ -440,18 +473,20 @@ def mergeLoops(filename):
         if stripped_line.startswith('>'):
             output_file.write(line)
         elif stripped_line[0] not in 'ACGTUacgtu':
+            # structure
+            structure = stripped_line.split()[0] # take out the free energy at the end
             count = 0
 
-            for _ in divergent_loops.finditer(stripped_line):
+            for _ in divergent_loops.finditer(structure):
                 count += 1
                 break
 
             if count == 0:
                 # only one loop. Write it as is
-                output_file.write(line)
+                output_file.write("%s\n" % structure)
             else:
                 # Multiple loops. There must be only one
-                straightened_structure = keepOneLoop(stripped_line)
+                straightened_structure = keepOneLoop(structure)
                 output_file.write("%s\n" % straightened_structure)
 
         else:
@@ -541,10 +576,10 @@ def structuresToFasta(filename):
 
     for line in input_file:
         if line.startswith('>'):
-            parts = re.split(r'[>()\s+]', line.strip())
-            locus = parts[1]
-            score = parts[2]
-            normalised_score = parts[-2]
+            parts = line.strip()[1:].split()
+            score = parts[1]
+            normalised_score = parts[3]
+            description = ' '.join(parts[5:])
 
             sequence = next(input_file).replace('U','T')
             structure_lines = []
@@ -558,12 +593,13 @@ def structuresToFasta(filename):
             else:
                 structure_score = '0'
             
-            fasta_line = ">Predicted-miRNA Position:%(locus)s Length:%(length)s GrammarScore:%(score)s NormalisedGrammarScore:%(normalise_score)s StructuralScore:%(structure_score)s\n" % {
-                'locus' : locus,
+            fasta_line = ">Predicted-miRNA Position:%(locus)s Length:%(length)s GrammarScore:%(score)s NormalisedGrammarScore:%(normalise_score)s StructuralScore:%(structure_score)s ID:%(description)s\n" % {
+                'locus' : '',
                 'length' : len(sequence.strip()),
                 'score' : score,
                 'normalise_score' : normalised_score,
-                'structure_score' : structure_score
+                'structure_score' : structure_score,
+                'description' : description
             }
 
             output_file.write(fasta_line)
@@ -715,14 +751,9 @@ def main(args):
         logging.error("Problems running RNAfold on %s" % rfold_filename)
         return 1
 
-    nodg_filename = removeMeanFreeEnergyValues(rfold_output_filename)
-    if not nodg_filename:
-        logging.error("Problems removing mean free energy values on %s" % rfold_output_filename)
-        return 1
-
-    merged_loops_filename = mergeLoops(nodg_filename)
+    merged_loops_filename = mergeLoops(rfold_output_filename)
     if not merged_loops_filename:
-        logging.error("Problems merging loops on %s" % nodg_filename)
+        logging.error("Problems merging loops on %s" % rfold_output_filename)
         return 1
 
     diagram_filename = structuresToDiagrams(merged_loops_filename)
