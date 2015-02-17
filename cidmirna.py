@@ -127,8 +127,16 @@ class Configuration(object):
 
     @classmethod
     def multi_run(cls, commands, local=True):
+        # TODO: Fix cases where some of the subcommands are local and some aren't
+        # TODO: Handle different environments per command
         for command in commands:
-            # patch command if it needs patching
+            # patch each command in the chain if it needs patching
+            for index in range(len(command))[::-1]:
+                # go backwards so that the indices stay correct
+                if command[index] is Command.PIPE_MARKER:
+                    # Replace the next command in the pipeline
+                    binary, environment = cls.get_command_and_environment(command[index+1], local=local)
+                    command[index+1:index+2] = binary
             binary, environment = cls.get_command_and_environment(command[0], local=local)
             command[0:1] = binary
 
