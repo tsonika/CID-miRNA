@@ -7,8 +7,8 @@
  
 using namespace std;
  
-#define MAXLEN 200
-#define MAXPATH 100
+#define MAXLEN 20000
+#define MAXPATH 1000
  
 char infile[MAXPATH],outfile[MAXPATH];
 double cscore;
