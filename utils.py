@@ -11,7 +11,7 @@ def convertToRNA(sequence):
     return sequence.upper().replace('T','U')
 
 def normalisedRNA(file):
-    return ''.join(convertToRNA(line) for line in extractSequences(file))
+    return ''.join(convertToRNA(line) for line, _ in extractSequences(file))
 
 
 def dnaCrickMatch(base1, base2):
@@ -59,7 +59,7 @@ def flexibleOpen(filename):
 
 def extractSequences(file):
     """
-    Iterator over fasta or fastq files. Generates space-less lines of contig
+    Iterator over fasta or fastq files. Generates pairs of space-less lines of contig, descriptions (or None in straight data files)
     """
     fastq = all_data = None # we don't know whether it is a fastq or a fasta yet
     spacer = re.compile(r'\s')
@@ -86,7 +86,7 @@ def extractSequences(file):
         if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
             contig = despace(first_lines[0])
             if contig and contig[0] in 'ACGTUacgtu':
-                yield contig
+                yield contig, None
         return
     else:
         if not first_lines[0].startswith('>') and not first_lines[0].startswith('@'):
@@ -97,7 +97,7 @@ def extractSequences(file):
                 contig = despace(line)
                 if contig:
                     if contig[0] in 'ACGTUacgtu':
-                        yield contig
+                        yield contig, None
                     else:
                         all_data = False
                         logging.error("Don't recognise format of file")
@@ -107,9 +107,23 @@ def extractSequences(file):
             if first_lines[0].startswith('>'):
                 # fasta
                 fastq = False
-                contig = despace(first_lines[1])
-                if contig:
-                    yield contig
+                contigs = [despace(first_lines[1])]
+                if contigs[0]:
+                    # consume until the next line
+                    try:
+                        while True:
+                            next_part = next(file)
+                            if next_part.startswith('>'):
+                                # end of first record, but keep the description
+                                description = next_part[1:].strip()
+                                yield ''.join(contigs), first_lines[0][1:].strip()
+                                break
+                            else:
+                                contigs.append(despace(next_part))
+                    except StopIteration:
+                        # end of file. Only one record
+                        yield ''.join(contigs), first_lines[0][1:].strip()
+                        return
                 else:
                     # we were all set for something standard, but no
                     logging.error("Don't recognise format of file")
@@ -119,7 +133,7 @@ def extractSequences(file):
                 fastq = True
                 contig = despace(first_lines[1])
                 if contig:
-                    yield contig                
+                    yield contig, first_lines[0][1:].strip()
                 else:
                     # we were all set for something standard, but no
                     logging.error("Don't recognise format of file")
@@ -137,14 +151,21 @@ def extractSequences(file):
         for line in file:
             contig = despace(line)
             if contig:
-                yield contig
+                yield contig, None
     elif not fastq:
         # fasta
+        contigs = []
         for line in file:
-            if not line.startswith('>'):
-                contig = despace(line)
-                if contig:
-                    yield contig
+            if line.startswith('>'):
+                if contigs:
+                    yield ''.join(contigs), description
+                description = line[1:].strip()
+                contigs = []
+            else:
+                contigs.append(despace(line))
+        if contigs:
+            # leftovers
+            yield ''.join(contigs), description
     else:
         # fastq
         try:
@@ -155,7 +176,7 @@ def extractSequences(file):
                 quality = next(file)
 
                 contig = despace(sequence)
-                yield contig
+                yield contig, description[1:].strip()
         except StopIteration:
             pass
 
