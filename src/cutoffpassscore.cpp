@@ -7,8 +7,8 @@
  
 using namespace std;
  
-#define MAXLEN 200
-#define MAXPATH 100
+#define MAXLEN 200000
+#define MAXPATH 10000
  
 char infile[MAXPATH],outfile[MAXPATH];
 double cscore;
@@ -24,11 +24,12 @@ if (argc < 3)
         return -1;
         }
  
-strcpy(infile,argv[1]);
+strncpy(infile,argv[1], MAXPATH-1);
+infile[MAXPATH-1] = '\0';
 cscore=atof(argv[2]);
-strcpy(outfile,argv[3]);
+strncpy(outfile,argv[3], MAXPATH-1);
+outfile[MAXPATH-1] = '\0';
  
-//cout<<cyintercept<<endl<<cslope<<endl;
 passfile();
  
 return 0;
@@ -77,7 +78,6 @@ while (!filein.eof())
                                 //Now checking if the score is valid and then writing to outputfile
                                 if (seqnscore >= cscore && seqlen >= 60)
                                         {
-//                                      cout<<inputline1<<endl<<inputline2<<endl<<inputline3<<endl<<((cslope*seqlen)+cyintercept)<<endl;
                                         fileout<<inputline1<<endl<<inputline2<<endl<<inputline3<<endl;
                                         }
                                 }
