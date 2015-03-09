@@ -1,3 +1,8 @@
+/*
+Scores RNA sequences based on a stochastic context-free grammar model
+Scoring is done by a CYK algorithm (Cocke-Younger-Kasami)
+*/
+
 #include <iostream>
 #include <fstream>
 #include <cstring>
