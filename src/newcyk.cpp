@@ -4,16 +4,17 @@
 #include <sstream>
 #include <cmath>
 #include <ctime>
+
 using namespace std;
 
-#define MAXLEN 130
+#define MAX_SEQUENCE_LENGTH 130
 #define NSYM 60
 #define TSYM 4
 #define MAXSEQ 300
 #define MINUSINF -1e90
 #define START_NT 0
-#define MAXPATH 5000
-#define MAXNUM 240002 // maximum no. of sequence that can be picked up from a file
+#define MAX_PATH 5000
+#define MAX_SEQUENCES 240002 // maximum no. of sequence that can be picked up from a file
 
 struct entry {
     long nterm;
@@ -38,22 +39,15 @@ void cell::operator=(cell &xyz)
 
 }
 
-ifstream inprobfile, inseqfile;
-ofstream resultfile;
-
-static char inprobfilename[MAXPATH];
-static char inseqfilename[MAXPATH];
-static char resultfilename[MAXPATH];
-static char allseq[MAXNUM][MAXLEN+1];
+static char allseq[MAX_SEQUENCES][MAX_SEQUENCE_LENGTH+1];
 
 //bool existrule[NSYM][NSYM];
 cell hashrules[NSYM][NSYM];
 cell hashterminals[TSYM];
 
-cell matrix[MAXLEN][MAXLEN];
+cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
-long modsequence[MAXLEN];
-long seqctr;
+long modsequence[MAX_SEQUENCE_LENGTH];
 
 long i;
 long j;
@@ -69,90 +63,32 @@ bool flag = false;
 cell *x, *y, *z;
 double score;
 
-void initial_value_reader();
-// This function has to first reset everything and then
-// Fill up Hashrule 2-D matrix and
-// Fill up the hash matrix for Terminals
 
-bool modsequence_creator(const char* seq);
 // This will convert the character sequence longo an equivalent
 // numeric sequence by converting each Terminal longo equivalent numeric code
 // returns true if successful conversion else returns false
-
-double cyk_calculator(const char* sequence);
-// calculates the score
-
-void read_sequences(void);
-// read all sequences
-
-void givetime (long int t_in_sec);
-// give time in human readable format
-
-time_t t1,t2, t3, t4;
-
-int main(int argc, char* argv[])
+bool modsequence_creator(const char* sequence)
 {
- //const char sequence[MAXLEN] = "acauugcuacuuacaauuaguuuugcagguuugcauuucagcguauauauguauauguggcugugcaaauccaugcaaaacugauugugauaaugu";
- //strcpy(inprobfilename, "finalprobs.txt");
+    long len = strlen(sequence);
+    if (len <= 0) return false;
 
- //const char sequence[MAXLEN] = "acucaacuc";
- //strcpy(inprobfilename, "testprobs.txt");
+    for(int j = 0; j < len; ++j)
+    {
+            if((sequence[j] == 'a') || (sequence[j] == 'A')) modsequence[j] = 0;
+            else if((sequence[j] == 'u') || (sequence[j] == 'U')) modsequence[j] = 1;
+            else if((sequence[j] == 'g') || (sequence[j] == 'G')) modsequence[j] = 2;
+            else if((sequence[j] == 'c') || (sequence[j] == 'C')) modsequence[j] = 3;
+            else
+            {
+                cout << endl << "Seq # " << sequence << endl << " Illegal char found. Rejected";
+                return false;
 
-    if(argc < 4)
-    { cout  << endl << "INSUFFICIENT ARGMENTS" << endl
-            << "Format is : Program <input sequence file> <input prob. file> <output result file> "
-            << endl;
-    return 1;
+            }
     }
-
-    strcpy(inseqfilename,argv[1]);
-    strcpy(inprobfilename,argv[2]);
-    strcpy(resultfilename,argv[3]);
-
- initial_value_reader();
- read_sequences();
-
- resultfile.open(resultfilename);
-
- if(!resultfile.good())
- {
-     cout << endl << " ERROR OPENING RESULT FILE !! " << endl;
-     exit(1);
- }
-
- (void)time(&t1);
-    //Start Clocking;
-
- double myscore;
- long seqlen, mi;
- for( mi = 0; mi < seqctr; ++mi)
- {
-    myscore = cyk_calculator(allseq[mi]);
-    seqlen  = strlen(allseq[mi]);
-
-    cout << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
-    cout << "\n Length : " << seqlen;
-    cout << "\t Normal SCORE = " << myscore/seqlen;
-    cout << "\t SCORE = " << myscore;
-
-    resultfile << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
-    resultfile << "\n Length : " << seqlen;
-    resultfile << "\t Normal SCORE = " << myscore/seqlen;
-    resultfile << "\t SCORE = " << myscore;
-
- }
-
- (void)time(&t2);
-    //End Clocking;
-    cout << "\n TOTAL TIME TAKEN BY PROGRAM : \n";
-    givetime((long int)(t2-t1));
-
- resultfile.close();
- //cin.get();
- return 0;
-
+    return true;
 }
 
+// calculates the score
 double cyk_calculator(const char* sequence)
 {
 
@@ -255,15 +191,19 @@ double cyk_calculator(const char* sequence)
 //cell hashrules[NSYM][NSYM];
 //cell hashterminals[TSYM];
 
-//cell matrix[MAXLEN][MAXLEN];
+//cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
-void initial_value_reader()
+
+// This function has to first reset everything and then
+// Fill up Hashrule 2-D matrix and
+// Fill up the hash matrix for Terminals
+void initial_value_reader(const char* input_probability_filename)
 {
 
     long vi , j;
 
-    for(vi = 0; vi < MAXLEN; ++vi)
-        for(j = 0 ; j < MAXLEN; ++j)
+    for(vi = 0; vi < MAX_SEQUENCE_LENGTH; ++vi)
+        for(j = 0 ; j < MAX_SEQUENCE_LENGTH; ++j)
             matrix[vi][j].members = 0;
 
     for(vi = 0; vi < NSYM; ++vi)
@@ -273,13 +213,14 @@ void initial_value_reader()
     for(vi = 0; vi < TSYM; ++vi)
         hashterminals[vi].members = 0;
 
-    inprobfile.open(inprobfilename, ios::in);
+    ifstream inprobfile;
+    inprobfile.open(input_probability_filename, ios::in);
 
     char ch = 0;
     long temp;
     long pm[3] = {0,0,0};
     long double val = 0.0;
-    char tempstream[MAXPATH+1];
+    char tempstream[MAX_PATH+1];
 
     if(!inprobfile.good())
     {
@@ -289,7 +230,7 @@ void initial_value_reader()
 
     while(!inprobfile.eof())
     {
-        inprobfile.getline(tempstream,MAXPATH);
+        inprobfile.getline(tempstream,MAX_PATH);
         if(5 > strlen(tempstream)) continue;
         //just checking for basic length of one input line (can't be less than 5)
 
@@ -347,57 +288,119 @@ void initial_value_reader()
     inprobfile.close();
 }
 
-bool modsequence_creator(const char* sequence)
-{
-    long len = strlen(sequence);
-    if (len <= 0) return false;
 
-    for(int j = 0; j < len; ++j)
-    {
-            if((sequence[j] == 'a') || (sequence[j] == 'A')) modsequence[j] = 0;
-            else if((sequence[j] == 'u') || (sequence[j] == 'U')) modsequence[j] = 1;
-            else if((sequence[j] == 'g') || (sequence[j] == 'G')) modsequence[j] = 2;
-            else if((sequence[j] == 'c') || (sequence[j] == 'C')) modsequence[j] = 3;
-            else
-            {
-                cout << endl << "Seq # " << sequence << endl << " Illegal char found. Rejected";
-                return false;
-
-            }
-    }
-    return true;
-}
-
+// give time in human readable format
 void givetime (long int t_in_sec)
 {
-cout << "\t || "<<(t_in_sec / 3600)<<" HOURS - "
+    cout << "\t || "<<(t_in_sec / 3600)<<" HOURS - "
      << ((t_in_sec % 3600)/60) <<" MINUTES - "<<(t_in_sec % 60)<<" SECONDS ||\n";
 }
 
-void read_sequences(void)
+// read all sequences
+long read_sequences(const char *filename)
 {
-    inseqfile.open(inseqfilename);
+    ifstream inseqfile;
+    inseqfile.open(filename);
     if(!inseqfile.good())
     {
         cout << "\n Error Opening Input Sequence File !! \n";
         exit(1);
     }
 
-    seqctr = 0;
-    static char tempstream[MAXLEN+1];
+    long total_sequences = 0;
+    static char tempstream[MAX_SEQUENCE_LENGTH+1];
 
-    while(!inseqfile.eof() && (seqctr < MAXNUM))
+    while(!inseqfile.eof() && (total_sequences < MAX_SEQUENCES))
     {
-        //inseqfile.getline(tempstream,MAXLEN+1,'\n');
+        //inseqfile.getline(tempstream,MAX_SEQUENCE_LENGTH+1,'\n');
         inseqfile >> tempstream;
         if((strlen(tempstream) <= 1) || strstr(tempstream, ">")) continue;
 
-        strcpy(allseq[seqctr],tempstream);
-        ++seqctr;
+        strcpy(allseq[total_sequences++],tempstream);
     }
 
     inseqfile.close();
+    return total_sequences;
 }
 
 
 
+int main(int argc, char* argv[])
+{
+
+    time_t t1,t2;
+    char input_probability_filename[MAX_PATH];
+    char input_sequence_filename[MAX_PATH];
+    char result_filename[MAX_PATH];
+
+
+    if(argc < 4)
+    { cerr  << endl << "INSUFFICIENT ARGMENTS" << endl
+            << "Format is : Program <input sequence file> <input prob. file> <output result file> "
+            << endl;
+    return 1;
+    }
+
+    if (strlen(argv[1]) >= MAX_PATH - 1) {
+        cerr << "The sequence file name is too long" << endl;
+        return 1;
+    }
+
+    if (strlen(argv[2]) >= MAX_PATH - 1) {
+        cerr << "The input probability file name is too long" << endl;
+        return 1;
+    }
+
+    if (strlen(argv[3]) >= MAX_PATH - 1) {
+        cerr << "The output result file name is too long" << endl;
+        return 1;
+    }
+
+    strcpy(input_sequence_filename,argv[1]);
+    strcpy(input_probability_filename,argv[2]);
+    strcpy(result_filename,argv[3]);
+
+    initial_value_reader(input_probability_filename);
+    long total_sequences = read_sequences(input_sequence_filename);
+
+    ofstream resultfile;
+    resultfile.open(result_filename);
+
+    if(!resultfile.good())
+    {
+        cout << endl << " ERROR OPENING RESULT FILE !! " << endl;
+        exit(1);
+    }
+
+    (void)time(&t1);
+    //Start Clocking;
+
+    double myscore;
+    long seqlen, mi;
+    for( mi = 0; mi < total_sequences; ++mi)
+    {
+        myscore = cyk_calculator(allseq[mi]);
+        seqlen  = strlen(allseq[mi]);
+
+        cout << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
+        cout << "\n Length : " << seqlen;
+        cout << "\t Normal SCORE = " << myscore/seqlen;
+        cout << "\t SCORE = " << myscore;
+
+        resultfile << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
+        resultfile << "\n Length : " << seqlen;
+        resultfile << "\t Normal SCORE = " << myscore/seqlen;
+        resultfile << "\t SCORE = " << myscore;
+
+    }
+
+    (void)time(&t2);
+    //End Clocking;
+    cout << "\n TOTAL TIME TAKEN BY PROGRAM : \n";
+    givetime((long int)(t2-t1));
+
+    resultfile.close();
+    //cin.get();
+    return 0;
+
+}
