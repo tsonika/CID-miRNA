@@ -10,7 +10,6 @@ using namespace std;
 #define MAX_SEQUENCE_LENGTH 130
 #define NSYM 60
 #define TSYM 4
-#define MAXSEQ 300
 #define MINUSINF -1e90
 #define START_NT 0
 #define MAX_PATH 5000
@@ -29,14 +28,12 @@ struct cell {
     void operator= (cell &xyz);
 };
 
-long eqi;
-
 void cell::operator=(cell &xyz)
 {
+    long eqi;
     members = xyz.members;
     for(eqi = 0 ; eqi < NSYM; ++eqi)
         node[eqi] = xyz.node[eqi];
-
 }
 
 static char allseq[MAX_SEQUENCES][MAX_SEQUENCE_LENGTH+1];
@@ -47,40 +44,28 @@ cell hashterminals[TSYM];
 
 cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
-long modsequence[MAX_SEQUENCE_LENGTH];
 
-long i;
-long j;
-long p;
-long n1;
-long n2;
-long n3;
-long n4;
-long nrule;
 
-bool flag = false;
-//cell &x, &y, &z;
 cell *x, *y, *z;
-double score;
 
 
 // This will convert the character sequence longo an equivalent
 // numeric sequence by converting each Terminal longo equivalent numeric code
 // returns true if successful conversion else returns false
-bool modsequence_creator(const char* sequence)
+bool convert_sequence(const char* sequence, long* converted_sequence)
 {
     long len = strlen(sequence);
     if (len <= 0) return false;
 
     for(int j = 0; j < len; ++j)
     {
-            if((sequence[j] == 'a') || (sequence[j] == 'A')) modsequence[j] = 0;
-            else if((sequence[j] == 'u') || (sequence[j] == 'U')) modsequence[j] = 1;
-            else if((sequence[j] == 'g') || (sequence[j] == 'G')) modsequence[j] = 2;
-            else if((sequence[j] == 'c') || (sequence[j] == 'C')) modsequence[j] = 3;
+            if((sequence[j] == 'a') || (sequence[j] == 'A')) converted_sequence[j] = 0;
+            else if((sequence[j] == 'u') || (sequence[j] == 'U')) converted_sequence[j] = 1;
+            else if((sequence[j] == 'g') || (sequence[j] == 'G')) converted_sequence[j] = 2;
+            else if((sequence[j] == 'c') || (sequence[j] == 'C')) converted_sequence[j] = 3;
             else
             {
-                cout << endl << "Seq # " << sequence << endl << " Illegal char found. Rejected";
+                cerr << endl << "Seq # " << sequence << endl << " Illegal char found. Rejected";
                 return false;
 
             }
@@ -92,19 +77,25 @@ bool modsequence_creator(const char* sequence)
 double cyk_calculator(const char* sequence)
 {
 
-    long seqlen = strlen(sequence);
-    if(seqlen <= 0) return MINUSINF;
+    long i, j, p;
+    long n1, n2, n3, n4;
+    long nrule;
+    bool flag = false;
+    double score = 0.0;
+    long sequence_length = strlen(sequence);
+    if(sequence_length <= 0) return MINUSINF;
 
-    if(!modsequence_creator(sequence)) return MINUSINF;
+    long converted_sequence[MAX_SEQUENCE_LENGTH];
+    if(!convert_sequence(sequence, converted_sequence)) return MINUSINF;
 
-    for(j = 0; j < seqlen; ++j)
-        matrix[0][j] = hashterminals[modsequence[j]];
+    for(j = 0; j < sequence_length; ++j)
+        matrix[0][j] = hashterminals[converted_sequence[j]];
 
     // I have initialized the first row according to each terminal
 
-    for(i = 1; i < seqlen; ++i)
+    for(i = 1; i < sequence_length; ++i)
     {
-        for(j = 0; j < (seqlen - i); ++j)
+        for(j = 0; j < (sequence_length - i); ++j)
         {
             matrix[i][j].members = 0;
             for(p = 0; p < i; ++p)
@@ -170,11 +161,11 @@ double cyk_calculator(const char* sequence)
     }
 
     flag = false;
-    for(n1 = 0; n1 < matrix[seqlen-1][0].members; ++n1)
+    for(n1 = 0; n1 < matrix[sequence_length-1][0].members; ++n1)
     {
-        if(matrix[seqlen-1][0].node[n1].nterm == START_NT)
+        if(matrix[sequence_length-1][0].node[n1].nterm == START_NT)
         {
-            score = matrix[seqlen-1][0].node[n1].score;
+            score = matrix[sequence_length-1][0].node[n1].score;
             flag = true;
             break;
         }
@@ -184,14 +175,6 @@ double cyk_calculator(const char* sequence)
 
     return MINUSINF;
 }
-
-// This function has to first reset everything and then
-// Fill up Hashrules 2-D matrix and
-// Fill up the hash matrix for Terminals
-//cell hashrules[NSYM][NSYM];
-//cell hashterminals[TSYM];
-
-//cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
 
 // This function has to first reset everything and then
@@ -334,11 +317,11 @@ int main(int argc, char* argv[])
     char result_filename[MAX_PATH];
 
 
-    if(argc < 4)
-    { cerr  << endl << "INSUFFICIENT ARGMENTS" << endl
+    if(argc < 4) { 
+        cerr  << endl << "INSUFFICIENT ARGMENTS" << endl
             << "Format is : Program <input sequence file> <input prob. file> <output result file> "
             << endl;
-    return 1;
+        return 1;
     }
 
     if (strlen(argv[1]) >= MAX_PATH - 1) {
@@ -376,20 +359,20 @@ int main(int argc, char* argv[])
     //Start Clocking;
 
     double myscore;
-    long seqlen, mi;
-    for( mi = 0; mi < total_sequences; ++mi)
+    long sequence_length, counter;
+    for( counter = 0; counter < total_sequences; ++counter)
     {
-        myscore = cyk_calculator(allseq[mi]);
-        seqlen  = strlen(allseq[mi]);
+        myscore = cyk_calculator(allseq[counter]);
+        sequence_length  = strlen(allseq[counter]);
 
-        cout << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
-        cout << "\n Length : " << seqlen;
-        cout << "\t Normal SCORE = " << myscore/seqlen;
+        cout << "\n Sequence : " << counter+1 << endl << allseq[counter] ;
+        cout << "\n Length : " << sequence_length;
+        cout << "\t Normal SCORE = " << myscore/sequence_length;
         cout << "\t SCORE = " << myscore;
 
-        resultfile << "\n Sequence : " << mi+1 << endl << allseq[mi] ;
-        resultfile << "\n Length : " << seqlen;
-        resultfile << "\t Normal SCORE = " << myscore/seqlen;
+        resultfile << "\n Sequence : " << counter+1 << endl << allseq[counter] ;
+        resultfile << "\n Length : " << sequence_length;
+        resultfile << "\t Normal SCORE = " << myscore/sequence_length;
         resultfile << "\t SCORE = " << myscore;
 
     }
@@ -400,7 +383,6 @@ int main(int argc, char* argv[])
     givetime((long int)(t2-t1));
 
     resultfile.close();
-    //cin.get();
     return 0;
 
 }
