@@ -8,10 +8,10 @@
 using namespace std;
 
 #define MAX_SEQUENCE_LENGTH 130
-#define NSYM 60
-#define TSYM 4
+#define NONTERMINAL_SYMBOLS 60
+#define TERMINAL_SYMBOLS 4
 #define MINUSINF -1e90
-#define START_NT 0
+#define START_NONTTERMINAL 0
 #define MAX_PATH 5000
 #define MAX_SEQUENCES 240002 // maximum no. of sequence that can be picked up from a file
 
@@ -23,7 +23,7 @@ struct entry {
 struct cell {
 
     long members;           //basically stores the number of members in the array
-    entry node[NSYM];
+    entry node[NONTERMINAL_SYMBOLS];
 
     void operator= (cell &xyz);
 };
@@ -32,15 +32,15 @@ void cell::operator=(cell &xyz)
 {
     long eqi;
     members = xyz.members;
-    for(eqi = 0 ; eqi < NSYM; ++eqi)
+    for(eqi = 0 ; eqi < NONTERMINAL_SYMBOLS; ++eqi)
         node[eqi] = xyz.node[eqi];
 }
 
 static char allseq[MAX_SEQUENCES][MAX_SEQUENCE_LENGTH+1];
 
-//bool existrule[NSYM][NSYM];
-cell hashrules[NSYM][NSYM];
-cell hashterminals[TSYM];
+//bool existrule[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
+cell hashrules[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
+cell hashterminals[TERMINAL_SYMBOLS];
 
 cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
@@ -163,7 +163,7 @@ double cyk_calculator(const char* sequence)
     flag = false;
     for(n1 = 0; n1 < matrix[sequence_length-1][0].members; ++n1)
     {
-        if(matrix[sequence_length-1][0].node[n1].nterm == START_NT)
+        if(matrix[sequence_length-1][0].node[n1].nterm == START_NONTTERMINAL)
         {
             score = matrix[sequence_length-1][0].node[n1].score;
             flag = true;
@@ -189,11 +189,11 @@ void initial_value_reader(const char* input_probability_filename)
         for(j = 0 ; j < MAX_SEQUENCE_LENGTH; ++j)
             matrix[vi][j].members = 0;
 
-    for(vi = 0; vi < NSYM; ++vi)
-        for(j = 0; j < NSYM; ++j)
+    for(vi = 0; vi < NONTERMINAL_SYMBOLS; ++vi)
+        for(j = 0; j < NONTERMINAL_SYMBOLS; ++j)
             hashrules[vi][j].members = 0;
 
-    for(vi = 0; vi < TSYM; ++vi)
+    for(vi = 0; vi < TERMINAL_SYMBOLS; ++vi)
         hashterminals[vi].members = 0;
 
     ifstream inprobfile;
@@ -223,50 +223,55 @@ void initial_value_reader(const char* input_probability_filename)
 
         if((ch == 'a') || (ch == 'A'))
         {
+            // 'a' lines describe probability of transitions from non-terminals to non-terminals
+            // eg a 57 51 37 0.00120985 means
+            // the probability of going from non-terminal 37 to non-terminals 57 and 51 is 0.001209...
             iss>>pm[0];
             iss>>pm[1];
             iss>>pm[2];
             iss>>val;
-            if((pm[0] < NSYM) &&(pm[1] < NSYM) &&(pm[2] < NSYM))
+            if((pm[0] < NONTERMINAL_SYMBOLS) &&(pm[1] < NONTERMINAL_SYMBOLS) &&(pm[2] < NONTERMINAL_SYMBOLS))
             {
                 temp = hashrules[pm[1]][pm[2]].members++;
                 hashrules[pm[1]][pm[2]].node[temp].nterm = pm[0];
                 hashrules[pm[1]][pm[2]].node[temp].score = log10(val);
 
-                cout << "\n a : "<< pm[0] <<"\t" << pm[1] << "\t"<< pm[2] << "\t"<< val; // (a[pm[0]][pm[1]][pm[2]]);
+                //cout << "\n a : "<< pm[0] <<"\t" << pm[1] << "\t"<< pm[2] << "\t"<< val; 
             }
         }
-        else
+        else if((ch == 'b') || (ch == 'B'))
         {
-            if((ch == 'b') || (ch == 'B'))
+            // 'b' lines describe probabilities of emitting terminals
+            // eg b 51 0 0.243964
+            // is the probability of emitting terminal '0' from non-terminal 51 (0.243...)
+
+            iss>>pm[0];
+            iss>>pm[1];
+            iss>>val;
+
+            if((pm[0] < NONTERMINAL_SYMBOLS) &&(pm[1] < TERMINAL_SYMBOLS))
             {
-                iss>>pm[0];
-                iss>>pm[1];
-                iss>>val;
+                //b[pm[0]][pm[1]] = val;
+                //validb[pm[0]][pm[1]] = true;
 
-                if((pm[0] < NSYM) &&(pm[1] < TSYM))
-                {
-                    //b[pm[0]][pm[1]] = val;
-                    //validb[pm[0]][pm[1]] = true;
+                temp = hashterminals[pm[1]].members++;
+                hashterminals[pm[1]].node[temp].nterm = pm[0];
+                hashterminals[pm[1]].node[temp].score = log10(val);
 
-                    temp = hashterminals[pm[1]].members++;
-                    hashterminals[pm[1]].node[temp].nterm = pm[0];
-                    hashterminals[pm[1]].node[temp].score = log10(val);
-
-                    cout << "\n b : "<< pm[0] <<"\t" << pm[1] << "\t"<< val; //(b[pm[0]][pm[1]]);
-                }
+                // cout << "\n b : "<< pm[0] <<"\t" << pm[1] << "\t"<< val; //(b[pm[0]][pm[1]]);
             }
+        }
 
-            else if(ch == '#') continue;
+        else if(ch == '#') continue;
             //Comment Symbol
 
-            else if(!inprobfile.eof())
-            {
-                cout << "\n Unable to parse Input Probability File" << "\n Check the Format";
-                inprobfile.close();
-                exit(1);
-            }
+        else if(!inprobfile.eof())
+        {
+            cerr << "\n Unable to parse Input Probability File" << "\n Check the Format";
+            inprobfile.close();
+            exit(1);
         }
+
     }
     inprobfile.close();
 }
