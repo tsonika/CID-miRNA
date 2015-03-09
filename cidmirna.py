@@ -22,15 +22,12 @@ DefaultGrammarScoreCutoff = -0.609999
 DefaultStructuralScoreCutoff = 23
 DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 
-# We are packaging old binaries until we recreate the source
-NeedPreload = ['newcyk2']
-
 #--------------------------------------------------------------------------------------------------------------------------
 # This program calls the following six programs in succession for a full genome scan
 #--------------------------------------------------------------------------------------------------------------------------
 # Program Name          Input Arguments                         Needed in this program
 #--------------------------------------------------------------------------------------------------------------------------
-# [1] newcyk2
+# [1] scoresequence
 #               - Input file with only sequences to be run through the grammar      N
 #               - Input probability file name                       N
 #               - Output result filename                        N
@@ -72,8 +69,7 @@ class Configuration(object):
     OutputDirectory = '.'
 
     @classmethod
-    def get_command_and_environment(cls, command, local=True):
-        ld_library_path = None
+    def get_pathed_command(cls, command, local=True):
         if local:
             script_path = os.path.dirname(__file__)
             if not script_path:
@@ -81,8 +77,6 @@ class Configuration(object):
 
             script_path = os.path.join(script_path, 'bin')
 
-            if command in NeedPreload:
-                ld_library_path = script_path
             full_command = [os.path.join(script_path, command)]
             if command.endswith('.py'):
                 # prefix the python executable that we are using
@@ -90,11 +84,7 @@ class Configuration(object):
         else:
             full_command = [command]
 
-        environment = dict(os.environ)
-        if ld_library_path:
-            environment['LD_LIBRARY_PATH'] = "%s%s" % (ld_library_path, ':%s' % environment.get('LD_LIBRARY_PATH') if "LD_LIBRARY_PATH" in environment else '')
-
-        return full_command, environment
+        return full_command
 
     @classmethod
     def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
@@ -103,7 +93,7 @@ class Configuration(object):
         Standard command run wrapper.
         """
 
-        command, environment = cls.get_command_and_environment(command, local=local)
+        command = cls.get_pathed_command(command, local=local)
 
         output_filename = "%s.%s" % (cls.map_file_to_output_directory(filename), output_extension)
         if manual_parameters:
@@ -118,7 +108,7 @@ class Configuration(object):
             piped_output = None
 
         exit_code = cls.Runner.run(full_command, output_filename=piped_output, 
-            input_filename=input_filename, environment=environment)
+            input_filename=input_filename)
         if exit_code != 0:
             return False
 
@@ -135,12 +125,12 @@ class Configuration(object):
                 # go backwards so that the indices stay correct
                 if command[index] is Command.PIPE_MARKER:
                     # Replace the next command in the pipeline
-                    binary, environment = cls.get_command_and_environment(command[index+1], local=local)
+                    binary = cls.get_pathed_command(command[index+1], local=local)
                     command[index+1:index+2] = binary
-            binary, environment = cls.get_command_and_environment(command[0], local=local)
+            binary = cls.get_pathed_command(command[0], local=local)
             command[0:1] = binary
 
-        return cls.Runner.multi_run(commands, environment=environment, max_simultaneous=cls.MaxProcesses)
+        return cls.Runner.multi_run(commands, max_simultaneous=cls.MaxProcesses)
 
 
 
@@ -275,12 +265,12 @@ def runNewcyk(filenames, probabilities_filename):
     commands = []
     for filename in sequence_filenames:
         score_filename = '%s.score' % Configuration.map_file_to_output_directory(filename)
-        command = ['newcyk2', filename, probabilities_filename, score_filename]
+        command = ['scoresequence', filename, probabilities_filename, score_filename]
         score_filenames.append(score_filename)
         commands.append(command)
 
     if not Configuration.multi_run(commands, local=True):
-        logging.error("Some problem with newcyk2")
+        logging.error("Some problem with scoresequence  ")
         return False
 
     output_filenames = []
