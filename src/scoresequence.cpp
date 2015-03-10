@@ -13,12 +13,12 @@ Scoring is done by a CYK algorithm (Cocke-Younger-Kasami)
 using namespace std;
 
 #define MAX_SEQUENCE_LENGTH 130
+#define MAX_INPUT_LINE_LENGTH 50000
 #define NONTERMINAL_SYMBOLS 60
 #define TERMINAL_SYMBOLS 4
 #define MINUSINF -1e90
 #define START_NONTTERMINAL 0
 #define MAX_PATH 5000
-#define MAX_SEQUENCES 240002 // maximum no. of sequence that can be picked up from a file
 
 struct entry {
     long nterm;
@@ -40,8 +40,6 @@ void cell::operator=(cell &xyz)
     for(eqi = 0 ; eqi < NONTERMINAL_SYMBOLS; ++eqi)
         node[eqi] = xyz.node[eqi];
 }
-
-static char allseq[MAX_SEQUENCES][MAX_SEQUENCE_LENGTH+1];
 
 //bool existrule[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
 cell hashrules[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
@@ -289,34 +287,6 @@ void givetime (long int t_in_sec)
      << ((t_in_sec % 3600)/60) <<" MINUTES - "<<(t_in_sec % 60)<<" SECONDS ||\n";
 }
 
-// read all sequences
-long read_sequences(const char *filename)
-{
-    ifstream inseqfile;
-    inseqfile.open(filename);
-    if(!inseqfile.good())
-    {
-        cout << "\n Error Opening Input Sequence File !! \n";
-        exit(1);
-    }
-
-    long total_sequences = 0;
-    static char tempstream[MAX_SEQUENCE_LENGTH+1];
-
-    while(!inseqfile.eof() && (total_sequences < MAX_SEQUENCES))
-    {
-        //inseqfile.getline(tempstream,MAX_SEQUENCE_LENGTH+1,'\n');
-        inseqfile >> tempstream;
-        if((strlen(tempstream) <= 1) || strstr(tempstream, ">")) continue;
-
-        strcpy(allseq[total_sequences++],tempstream);
-    }
-
-    inseqfile.close();
-    return total_sequences;
-}
-
-
 
 int main(int argc, char* argv[])
 {
@@ -354,38 +324,64 @@ int main(int argc, char* argv[])
     strcpy(result_filename,argv[3]);
 
     initial_value_reader(input_probability_filename);
-    long total_sequences = read_sequences(input_sequence_filename);
 
     ofstream resultfile;
     resultfile.open(result_filename);
 
     if(!resultfile.good())
     {
-        cout << endl << " ERROR OPENING RESULT FILE !! " << endl;
+        cerr << endl << " ERROR OPENING RESULT FILE !! " << endl;
         exit(1);
     }
+
+    ifstream inseqfile;
+    inseqfile.open(input_sequence_filename);
+    if(!inseqfile.good())
+    {
+        cerr << "\n Error Opening Input Sequence File !! \n";
+        exit(1);
+    }
+
 
     (void)time(&t1);
     //Start Clocking;
 
+    long counter = 0;
+    long line_length;
+    char input_line[MAX_INPUT_LINE_LENGTH+1];
     double myscore;
-    long sequence_length, counter;
-    for( counter = 0; counter < total_sequences; ++counter)
+
+    while(!inseqfile.eof())
     {
-        myscore = cyk_calculator(allseq[counter]);
-        sequence_length  = strlen(allseq[counter]);
+        inseqfile.getline(input_line, MAX_INPUT_LINE_LENGTH+1);
+        counter++;
 
-        cout << "\n Sequence : " << counter+1 << endl << allseq[counter] ;
-        cout << "\n Length : " << sequence_length;
-        cout << "\t Normal SCORE = " << myscore/sequence_length;
-        cout << "\t SCORE = " << myscore;
+        if (inseqfile.fail()) {
+            if (!inseqfile.eof()) {
+                // Something went wrong. Most likely that line was too long
+                cerr << "Something went wrong reading line " << counter << ". Probably too long. Bailing" << endl;
+            }
+            break;
+        }
 
-        resultfile << "\n Sequence : " << counter+1 << endl << allseq[counter] ;
-        resultfile << "\n Length : " << sequence_length;
-        resultfile << "\t Normal SCORE = " << myscore/sequence_length;
-        resultfile << "\t SCORE = " << myscore;
+        line_length  = strlen(input_line);
+        if((line_length <= 1) || strstr(input_line, ">")) continue;
+
+        if (line_length > MAX_SEQUENCE_LENGTH) {
+            cerr << "Line " << counter << " too long. Skipping" << endl;            
+            continue;
+        }
+        
+        myscore = cyk_calculator(input_line);
+        
+        resultfile << "\n Sequence : " << counter << endl << input_line
+        << "\n Length : " << line_length
+        << "\t Normal SCORE = " << myscore/line_length
+        << "\t SCORE = " << myscore;
 
     }
+
+    inseqfile.close();
 
     (void)time(&t2);
     //End Clocking;
