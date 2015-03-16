@@ -235,7 +235,7 @@ def runUnique(filenames):
 
 
 
-def runNewcyk(filenames, probabilities_filename):
+def scoreSequences(filenames, probabilities_filename):
     """
     Score each sequence.
     """
@@ -716,7 +716,7 @@ def main(args):
         logging.error("Couldn't make unique versions of %s" % ', '.join(parsed_filenames))
         return 1
 
-    grammar_filename = runNewcyk(uniqued_filenames, parameters.probabilitiesFilename)
+    grammar_filename = scoreSequences(uniqued_filenames, parameters.probabilitiesFilename)
     if not grammar_filename:
         logging.error("Grammar run failed on %s" % ', '.join(uniqued_filenames))
         return 1
