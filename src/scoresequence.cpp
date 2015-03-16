@@ -21,7 +21,7 @@ using namespace std;
 #define MAX_PATH 5000
 
 struct entry {
-    long nterm;
+    long non_terminal;
     double score;
 };
 
@@ -41,15 +41,11 @@ void cell::operator=(cell &xyz)
         node[eqi] = xyz.node[eqi];
 }
 
-//bool existrule[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
-cell hashrules[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
-cell hashterminals[TERMINAL_SYMBOLS];
+cell rule_transitions[NONTERMINAL_SYMBOLS][NONTERMINAL_SYMBOLS];
+cell terminal_emissions[TERMINAL_SYMBOLS];
 
 cell matrix[MAX_SEQUENCE_LENGTH][MAX_SEQUENCE_LENGTH];
 
-
-
-cell *x, *y, *z;
 
 
 // This will convert the character sequence longo an equivalent
@@ -76,15 +72,21 @@ bool convert_sequence(const char* sequence, long* converted_sequence)
     return true;
 }
 
-// calculates the score
+/* 
+Implement the CYK (Cocke-Younger-Kasami) for parsing stochastic context-free grammars as described in "Stochastic Context-Free Grammars and RNA Secondary Structure Prediction" by Martin Knudsen - http://cs.au.dk/~cstorm/students/Knudsen_Jun2005.pdf, page 28.
+*/
+
 double cyk_calculator(const char* sequence)
 {
 
     long i, j, p;
     long n1, n2, n3, n4;
     long nrule;
-    bool flag = false;
+    bool full_sequence_scored = false;
+    bool found = false;
     double score = 0.0;
+    cell *x, *y, *z;    
+
     long sequence_length = strlen(sequence);
     if(sequence_length <= 0) return MINUSINF;
 
@@ -92,9 +94,13 @@ double cyk_calculator(const char* sequence)
     if(!convert_sequence(sequence, converted_sequence)) return MINUSINF;
 
     for(j = 0; j < sequence_length; ++j)
-        matrix[0][j] = hashterminals[converted_sequence[j]];
+        matrix[0][j] = terminal_emissions[converted_sequence[j]];
 
     // I have initialized the first row according to each terminal
+
+
+    // From the comment in the algorithm desciption:
+    // i is the length of the span, j the start and p where to split into two subspans
 
     for(i = 1; i < sequence_length; ++i)
     {
@@ -108,53 +114,37 @@ double cyk_calculator(const char* sequence)
                 x = &matrix[p][j];
                 y = &matrix[i-p-1][j+p+1];
 
-                //cell &x = matrix[p][j];
-                //cell &y = matrix[i-p-1][j+p+1];
-
-                //for(n1 = 0; n1 < matrix[p][j].members; ++n1)
-                 for(n1 = 0; n1 < x->members; ++n1)
-                //  for(n1 = 0; n1 < x.members; ++n1)
-
+                for(n1 = 0; n1 < x->members; ++n1)
                 {
-                    //for(n2 = 0; n2 < matrix[i-p-1][j+p+1].members; ++n2)
                     for(n2 = 0; n2 < y->members; ++n2)
-                    //  for(n2 = 0; n2 < y.members; ++n2)
                     {
-                        z = &hashrules[matrix[p][j].node[n1].nterm][matrix[i-p-1][j+p+1].node[n2].nterm];
-                        //cell &z = hashrules[matrix[p][j].node[n1].nterm][matrix[i-p-1][j+p+1].node[n2].nterm];
+                        z = &rule_transitions[x->node[n1].non_terminal][y->node[n2].non_terminal];
 
-                        //for(n3 = 0; n3 < hashrules[matrix[p][j].node[n1].nterm][matrix[i-p-1][j+p+1].node[n2].nterm].members; ++n3)
-                         for(n3 = 0; n3 < z->members; ++n3)
-                        // for(n3 = 0; n3 < z.members; ++n3)
+                        for(n3 = 0; n3 < z->members; ++n3)
                         {
-                            flag = false;
-                            //score = matrix[p][j].node[n1].score + matrix[i-p-1][j+p+1].node[n2].score + hashrules[matrix[p][j].node[n1].nterm][matrix[i-p-1][j+p+1].node[n2].nterm].node[n3].score;
-                             score = x->node[n1].score + y->node[n2].score + z->node[n3].score;
-                            // score = x.node[n1].score + y.node[n2].score + z.node[n3].score;
-                            //nrule = hashrules[matrix[p][j].node[n1].nterm][matrix[i-p-1][j+p+1].node[n2].nterm].node[n3].nterm;
-                             nrule = z->node[n3].nterm;
-                            //   nrule = z.node[n3].nterm;
+                            found = false;
+                            score = x->node[n1].score + y->node[n2].score + z->node[n3].score;
+                            nrule = z->node[n3].non_terminal;
 
-                                for(n4 = 0; n4 < matrix[i][j].members; ++n4)
+                            for(n4 = 0; n4 < matrix[i][j].members; ++n4)
+                            {
+                                if(nrule == matrix[i][j].node[n4].non_terminal)
                                 {
-                                    if(nrule == matrix[i][j].node[n4].nterm)
+                                    found = true;
+                                    if (score > matrix[i][j].node[n4].score)
                                     {
-                                        flag = true;
-                                        if (score > matrix[i][j].node[n4].score)
-                                        {
-                                            matrix[i][j].node[n4].score = score;
-                                            break;
-                                        }
-
+                                        matrix[i][j].node[n4].score = score;
                                     }
+                                    break;
                                 }
+                            }
 
-                                if(!flag)
-                                {
-                                    // adding new entry
-                                    matrix[i][j].node[matrix[i][j].members].nterm = nrule;
-                                    matrix[i][j].node[matrix[i][j].members++].score = score;
-                                }
+                            if(!found)
+                            {
+                                // adding new entry
+                                matrix[i][j].node[matrix[i][j].members].non_terminal = nrule;
+                                matrix[i][j].node[matrix[i][j].members++].score = score;
+                            }
 
                         } // n3 loop
                     }
@@ -163,21 +153,24 @@ double cyk_calculator(const char* sequence)
         }
     }
 
-    flag = false;
+    full_sequence_scored = false;
     for(n1 = 0; n1 < matrix[sequence_length-1][0].members; ++n1)
     {
-        if(matrix[sequence_length-1][0].node[n1].nterm == START_NONTTERMINAL)
+        if(matrix[sequence_length-1][0].node[n1].non_terminal == START_NONTTERMINAL)
         {
             score = matrix[sequence_length-1][0].node[n1].score;
-            flag = true;
+            full_sequence_scored = true;
             break;
         }
     }
 
-    if(flag) return score;
+    if (full_sequence_scored) return score;
 
     return MINUSINF;
 }
+
+
+
 
 
 // This function has to first reset everything and then
@@ -194,10 +187,11 @@ void initial_value_reader(const char* input_probability_filename)
 
     for(vi = 0; vi < NONTERMINAL_SYMBOLS; ++vi)
         for(j = 0; j < NONTERMINAL_SYMBOLS; ++j)
-            hashrules[vi][j].members = 0;
+            rule_transitions[vi][j].members = 0;
 
     for(vi = 0; vi < TERMINAL_SYMBOLS; ++vi)
-        hashterminals[vi].members = 0;
+        terminal_emissions[vi].members = 0;
+
 
     ifstream inprobfile;
     inprobfile.open(input_probability_filename, ios::in);
@@ -210,7 +204,7 @@ void initial_value_reader(const char* input_probability_filename)
 
     if(!inprobfile.good())
     {
-        cout << "\n Error Opening Input Probability File !! \n";
+        cerr << "\n Error Opening Input Probability File !! \n";
         exit(1);
     }
 
@@ -235,11 +229,9 @@ void initial_value_reader(const char* input_probability_filename)
             iss>>val;
             if((pm[0] < NONTERMINAL_SYMBOLS) &&(pm[1] < NONTERMINAL_SYMBOLS) &&(pm[2] < NONTERMINAL_SYMBOLS))
             {
-                temp = hashrules[pm[1]][pm[2]].members++;
-                hashrules[pm[1]][pm[2]].node[temp].nterm = pm[0];
-                hashrules[pm[1]][pm[2]].node[temp].score = log10(val);
-
-                //cout << "\n a : "<< pm[0] <<"\t" << pm[1] << "\t"<< pm[2] << "\t"<< val; 
+                temp = rule_transitions[pm[1]][pm[2]].members++;
+                rule_transitions[pm[1]][pm[2]].node[temp].non_terminal = pm[0];
+                rule_transitions[pm[1]][pm[2]].node[temp].score = log10(val);
             }
         }
         else if((ch == 'b') || (ch == 'B'))
@@ -254,14 +246,9 @@ void initial_value_reader(const char* input_probability_filename)
 
             if((pm[0] < NONTERMINAL_SYMBOLS) &&(pm[1] < TERMINAL_SYMBOLS))
             {
-                //b[pm[0]][pm[1]] = val;
-                //validb[pm[0]][pm[1]] = true;
-
-                temp = hashterminals[pm[1]].members++;
-                hashterminals[pm[1]].node[temp].nterm = pm[0];
-                hashterminals[pm[1]].node[temp].score = log10(val);
-
-                // cout << "\n b : "<< pm[0] <<"\t" << pm[1] << "\t"<< val; //(b[pm[0]][pm[1]]);
+                temp = terminal_emissions[pm[1]].members++;
+                terminal_emissions[pm[1]].node[temp].non_terminal = pm[0];
+                terminal_emissions[pm[1]].node[temp].score = log10(val);
             }
         }
 
@@ -281,7 +268,7 @@ void initial_value_reader(const char* input_probability_filename)
 
 
 // give time in human readable format
-void givetime (long int t_in_sec)
+void print_time (long int t_in_sec)
 {
     cout << "\t || "<<(t_in_sec / 3600)<<" HOURS - "
      << ((t_in_sec % 3600)/60) <<" MINUTES - "<<(t_in_sec % 60)<<" SECONDS ||\n";
@@ -386,7 +373,7 @@ int main(int argc, char* argv[])
     (void)time(&t2);
     //End Clocking;
     cout << "\n TOTAL TIME TAKEN BY PROGRAM : \n";
-    givetime((long int)(t2-t1));
+    print_time((long int)(t2-t1));
 
     resultfile.close();
     return 0;
