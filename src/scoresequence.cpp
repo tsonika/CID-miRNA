@@ -85,7 +85,7 @@ double cyk_calculator(const char* sequence)
     bool full_sequence_scored = false;
     bool found = false;
     double score = 0.0;
-    cell *x, *y, *z;    
+    cell *x, *y, *z, *current;    
 
     long sequence_length = strlen(sequence);
     if(sequence_length <= 0) return MINUSINF;
@@ -93,11 +93,10 @@ double cyk_calculator(const char* sequence)
     long converted_sequence[MAX_SEQUENCE_LENGTH];
     if(!convert_sequence(sequence, converted_sequence)) return MINUSINF;
 
+
+    // Initialise the first row according to each terminal
     for(j = 0; j < sequence_length; ++j)
         matrix[0][j] = terminal_emissions[converted_sequence[j]];
-
-    // I have initialized the first row according to each terminal
-
 
     // From the comment in the algorithm desciption:
     // i is the length of the span, j the start and p where to split into two subspans
@@ -106,7 +105,8 @@ double cyk_calculator(const char* sequence)
     {
         for(j = 0; j < (sequence_length - i); ++j)
         {
-            matrix[i][j].members = 0;
+            current = &matrix[i][j];
+            current->members = 0;
             for(p = 0; p < i; ++p)
             {
                 // Taking cartesian product of matrix[p][j] and matrix[i-p-1][j+p+1]
@@ -126,15 +126,15 @@ double cyk_calculator(const char* sequence)
                             score = x->node[n1].score + y->node[n2].score + z->node[n3].score;
                             nrule = z->node[n3].non_terminal;
 
-                            for(n4 = 0; n4 < matrix[i][j].members; ++n4)
+                            for(n4 = 0; n4 < current->members; ++n4)
                             {
-                                if(nrule == matrix[i][j].node[n4].non_terminal)
+                                if(nrule == current->node[n4].non_terminal)
                                 {
-                                    found = true;
-                                    if (score > matrix[i][j].node[n4].score)
+                                    if (score > current->node[n4].score)
                                     {
-                                        matrix[i][j].node[n4].score = score;
+                                        current->node[n4].score = score;
                                     }
+                                    found = true;
                                     break;
                                 }
                             }
@@ -142,8 +142,8 @@ double cyk_calculator(const char* sequence)
                             if(!found)
                             {
                                 // adding new entry
-                                matrix[i][j].node[matrix[i][j].members].non_terminal = nrule;
-                                matrix[i][j].node[matrix[i][j].members++].score = score;
+                                current->node[current->members].non_terminal = nrule;
+                                current->node[current->members++].score = score;
                             }
 
                         } // n3 loop
@@ -168,9 +168,6 @@ double cyk_calculator(const char* sequence)
 
     return MINUSINF;
 }
-
-
-
 
 
 // This function has to first reset everything and then
