@@ -79,14 +79,13 @@ Implement the CYK (Cocke-Younger-Kasami) for parsing stochastic context-free gra
 
 double cyk_calculator(const char* sequence)
 {
-
-    long i, j, p;
-    long n1, n2, n3, n4;
-    long nrule;
+    long length, start, non_terminal_length;
+    long first_non_terminal_index, second_non_terminal_index, source_non_terminal_index, current_non_terminal;
+    long production_non_terminal;
     bool full_sequence_scored = false;
     bool found = false;
     double score = 0.0;
-    cell *x, *y, *z, *current;    
+    cell *first_substring, *second_substring, *produced_string, *current;    
 
     long sequence_length = strlen(sequence);
     if(sequence_length <= 0) return MINUSINF;
@@ -95,45 +94,55 @@ double cyk_calculator(const char* sequence)
     if(!convert_sequence(sequence, converted_sequence)) return MINUSINF;
 
 
+    // If you are following the description of the algorithm:
+    // The order of the arrays are swapped below compared to the description
+    // In this implementation, you can think of the first index as the sequence length (minus one),
+    // and the second as the position where the sequence starts
+    // Also:    
+    // i == length
+    // j == start
+    // k == non_terminal_length
+
+
+    // length is the length of the span, start the start and non_terminal_length where to split into two subspans 
+    // (where each subspan covers one of the non-terminals on the right hand side of each production rule)
+    // non_terminal_length, therefore, can be thought of as the length taken by the first non-terminal
+
     // Initialise the first row according to each terminal
-    for(j = 0; j < sequence_length; ++j)
-        matrix[0][j] = terminal_emissions[converted_sequence[j]];
+    for(start = 0; start < sequence_length; ++start)
+        matrix[0][start] = terminal_emissions[converted_sequence[start]];
 
-    // From the comment in the algorithm desciption:
-    // i is the length of the span, j the start and p where to split into two subspans
 
-    for(i = 1; i < sequence_length; ++i)
+    for(length = 1; length < sequence_length; ++length)
     {
-        for(j = 0; j < (sequence_length - i); ++j)
+        for(start = 0; start < (sequence_length - length); ++start)
         {
-            current = &matrix[i][j];
+            current = &matrix[length][start];
             current->members = 0;
-            for(p = 0; p < i; ++p)
+            for(non_terminal_length = 0; non_terminal_length < length; ++non_terminal_length)
             {
-                // Taking cartesian product of matrix[p][j] and matrix[i-p-1][j+p+1]
+                first_substring = &matrix[non_terminal_length][start];
+                second_substring = &matrix[length-non_terminal_length-1][start+non_terminal_length+1];
 
-                x = &matrix[p][j];
-                y = &matrix[i-p-1][j+p+1];
-
-                for(n1 = 0; n1 < x->members; ++n1)
+                for(first_non_terminal_index = 0; first_non_terminal_index < first_substring->members; ++first_non_terminal_index)
                 {
-                    for(n2 = 0; n2 < y->members; ++n2)
+                    for(second_non_terminal_index = 0; second_non_terminal_index < second_substring->members; ++second_non_terminal_index)
                     {
-                        z = &rule_transitions[x->node[n1].non_terminal][y->node[n2].non_terminal];
+                        produced_string = &rule_transitions[first_substring->node[first_non_terminal_index].non_terminal][second_substring->node[second_non_terminal_index].non_terminal];
 
-                        for(n3 = 0; n3 < z->members; ++n3)
+                        for(source_non_terminal_index = 0; source_non_terminal_index < produced_string->members; ++source_non_terminal_index)
                         {
                             found = false;
-                            score = x->node[n1].score + y->node[n2].score + z->node[n3].score;
-                            nrule = z->node[n3].non_terminal;
+                            score = first_substring->node[first_non_terminal_index].score + second_substring->node[second_non_terminal_index].score + produced_string->node[source_non_terminal_index].score;
+                            production_non_terminal = produced_string->node[source_non_terminal_index].non_terminal;
 
-                            for(n4 = 0; n4 < current->members; ++n4)
+                            for(current_non_terminal = 0; current_non_terminal < current->members; ++current_non_terminal)
                             {
-                                if(nrule == current->node[n4].non_terminal)
+                                if(production_non_terminal == current->node[current_non_terminal].non_terminal)
                                 {
-                                    if (score > current->node[n4].score)
+                                    if (score > current->node[current_non_terminal].score)
                                     {
-                                        current->node[n4].score = score;
+                                        current->node[current_non_terminal].score = score;
                                     }
                                     found = true;
                                     break;
@@ -143,11 +152,11 @@ double cyk_calculator(const char* sequence)
                             if(!found)
                             {
                                 // adding new entry
-                                current->node[current->members].non_terminal = nrule;
+                                current->node[current->members].non_terminal = production_non_terminal;
                                 current->node[current->members++].score = score;
                             }
 
-                        } // n3 loop
+                        } // source_non_terminal_index loop
                     }
                 }
             }
@@ -155,11 +164,11 @@ double cyk_calculator(const char* sequence)
     }
 
     full_sequence_scored = false;
-    for(n1 = 0; n1 < matrix[sequence_length-1][0].members; ++n1)
+    for(current_non_terminal = 0; current_non_terminal < matrix[sequence_length-1][0].members; ++current_non_terminal)
     {
-        if(matrix[sequence_length-1][0].node[n1].non_terminal == START_NONTTERMINAL)
+        if(matrix[sequence_length-1][0].node[current_non_terminal].non_terminal == START_NONTTERMINAL)
         {
-            score = matrix[sequence_length-1][0].node[n1].score;
+            score = matrix[sequence_length-1][0].node[current_non_terminal].score;
             full_sequence_scored = true;
             break;
         }
