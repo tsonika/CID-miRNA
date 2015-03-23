@@ -18,6 +18,8 @@ using namespace std;
 #define NONTERMINAL_SYMBOLS 60
 #define TERMINAL_SYMBOLS 4
 #define MINUSINF -1e90
+// Ignore scores lower than the following
+#define NO_SCORE -1e85  
 #define START_NONTTERMINAL 0
 #define MAX_PATH 5000
 
@@ -73,11 +75,32 @@ bool convert_sequence(const char* sequence, long* converted_sequence)
     return true;
 }
 
-/* 
-Implement the CYK (Cocke-Younger-Kasami) for parsing stochastic context-free grammars as described in "Stochastic Context-Free Grammars and RNA Secondary Structure Prediction" by Martin Knudsen - http://cs.au.dk/~cstorm/students/Knudsen_Jun2005.pdf, page 28.
-*/
 
-double cyk_calculator(const char* sequence)
+/*
+Calculate log(a + b) when a and b are given as log(a) and log(b) making sure we don't underflow
+Makes use of the fact that log(a + b) = log(e^(log(a) + c) + e^(log(b) + c)) - c 
+since that's equivalent to multiplying and then dividing by c
+We choose a suitable c so that we don't underflow
+*/
+double add_probabilities_in_log_space(double log_a, double log_b) {
+    double normaliser, sum, normalised_a, normalised_b;
+
+    normaliser = min(log_a, log_b);
+    normalised_a = log_a + normaliser;
+    normalised_b = log_b + normaliser;
+
+    sum = pow(10.0, normalised_a) + pow(10.0, normalised_b);
+
+    return log10(sum) - normaliser;
+}
+
+
+/* 
+Implement the CYK (Cocke-Younger-Kasami) and the inside algorithms for parsing and scoring stochastic 
+context-free grammars as described in "Stochastic Context-Free Grammars and RNA Secondary Structure
+Prediction" by Martin Knudsen - http://cs.au.dk/~cstorm/students/Knudsen_Jun2005.pdf, pp 26-28
+*/
+double calculate_sequence_probability(const char* sequence, bool total_probability=true)
 {
     long length, start, non_terminal_length;
     long first_non_terminal_index, second_non_terminal_index, source_non_terminal_index, current_non_terminal;
@@ -88,10 +111,10 @@ double cyk_calculator(const char* sequence)
     cell *first_substring, *second_substring, *produced_string, *current;    
 
     long sequence_length = strlen(sequence);
-    if(sequence_length <= 0) return MINUSINF;
+    if (sequence_length <= 0) return MINUSINF;
 
     long converted_sequence[MAX_SEQUENCE_LENGTH];
-    if(!convert_sequence(sequence, converted_sequence)) return MINUSINF;
+    if (!convert_sequence(sequence, converted_sequence)) return MINUSINF;
 
 
     // If you are following the description of the algorithm:
@@ -134,13 +157,18 @@ double cyk_calculator(const char* sequence)
                         {
                             found = false;
                             score = first_substring->node[first_non_terminal_index].score + second_substring->node[second_non_terminal_index].score + produced_string->node[source_non_terminal_index].score;
+
+                            // Ignore very low probabilities
+                            if (score < NO_SCORE) continue;
                             production_non_terminal = produced_string->node[source_non_terminal_index].non_terminal;
 
                             for(current_non_terminal = 0; current_non_terminal < current->members; ++current_non_terminal)
                             {
                                 if(production_non_terminal == current->node[current_non_terminal].non_terminal)
                                 {
-                                    if (score > current->node[current_non_terminal].score)
+                                    if (total_probability) {
+                                        current->node[current_non_terminal].score = add_probabilities_in_log_space(score, current->node[current_non_terminal].score); 
+                                    } else if (score > current->node[current_non_terminal].score)
                                     {
                                         current->node[current_non_terminal].score = score;
                                     }
@@ -343,7 +371,7 @@ int main(int argc, char* argv[])
     long counter = 0;
     long line_length;
     char input_line[MAX_INPUT_LINE_LENGTH+1];
-    double myscore;
+    double total_probability, most_likely_parse_probability;
 
     while(!inseqfile.eof())
     {
@@ -366,12 +394,17 @@ int main(int argc, char* argv[])
             continue;
         }
         
-        myscore = cyk_calculator(input_line);
+        total_probability = calculate_sequence_probability(input_line, true);
+        if (total_probability > NO_SCORE)
+            most_likely_parse_probability = calculate_sequence_probability(input_line, false);
+        else
+            most_likely_parse_probability = MINUSINF;
         
         resultfile << "\n Sequence : " << counter << endl << input_line
         << "\n Length : " << line_length
-        << "\t Normal SCORE = " << myscore/line_length
-        << "\t SCORE = " << myscore;
+        << "\t Normal SCORE = " << total_probability/line_length
+        << "\t SCORE = " << total_probability
+        << "\t Most-likely parse SCORE normalised = " << most_likely_parse_probability/line_length;
 
     }
 
