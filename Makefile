@@ -4,9 +4,6 @@ EXECUTABLES := bin/cutoffpassscore bin/Scores4mStruct bin/scoresequence
 
 all: $(EXECUTABLES)
 
-parser4auto: parser4auto.o
-	$(CXX) $(CXXFLAGS) $< -o $@
-
 bin/scoresequence: src/scoresequence.o
 	$(CXX) $(CXXFLAGS) $< -o $@	
 
