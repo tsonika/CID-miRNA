@@ -1,0 +1,4 @@
+Comments about the code found:
+
+grammardraw.cpp, miRNAstruct.cpp and structstats.cpp are basically the same code. The comments at the
+top of grammardraw.cpp suggest that it is newer and that they've fixed a "HUGE BUG", which supposedly isn't fixed in the other two. Need to go through, comment, abstract and rewrite.
