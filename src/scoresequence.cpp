@@ -394,17 +394,14 @@ int main(int argc, char* argv[])
             continue;
         }
         
-        total_probability = calculate_sequence_probability(input_line, true);
-        if (total_probability > NO_SCORE)
-            most_likely_parse_probability = calculate_sequence_probability(input_line, false);
-        else
-            most_likely_parse_probability = MINUSINF;
-        
+        most_likely_parse_probability = calculate_sequence_probability(input_line, false);
+        // total_probability = calculate_sequence_probability(input_line, true);    
+
         resultfile << "\n Sequence : " << counter << endl << input_line
         << "\n Length : " << line_length
-        << "\t Normal SCORE = " << total_probability/line_length
-        << "\t SCORE = " << total_probability
-        << "\t Most-likely parse SCORE normalised = " << most_likely_parse_probability/line_length;
+        << "\t Normal SCORE = " << most_likely_parse_probability/line_length
+        << "\t SCORE = " << most_likely_parse_probability;
+        // << "\t Most-likely parse SCORE normalised = " << most_likely_parse_probability/line_length;
 
     }
 
