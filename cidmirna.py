@@ -14,7 +14,7 @@ import time
 
 from mirnastructure import diagramFromStructure
 from foldingsubsequences import DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
-from utils import generateRNACombinations
+from utils import generateRNACombinations, extractSequences, flexibleOpen
 from runner import LocalRunner, Command
 
 DefaultUpperDGCutoff = -13.559
@@ -604,6 +604,79 @@ def structuresToFasta(filename):
     return output_filename
 
 
+def positionsInFasta(filename, input_filenames):
+    """
+    Naive slow method to find a position for every result. 
+    FIXME: Optimise this if it's going to be used regularly
+    """
+
+    output_filename = "%s.position" % filename
+
+    # first find if there are multiple lines in the input. Otherwise we'll skip outputting the 
+    # description line
+
+
+    seen_descriptions = None
+    multiple = False
+    for source_filename in input_filenames:
+        try:
+            fasta_file = flexibleOpen(source_filename)
+        except (OSError, IOError) as error:
+            logging.error("Could not open %s" % source_filename)
+            return False
+        for _, description in extractSequences(fasta_file):
+            if description is not None:
+                if seen_descriptions is None:
+                    seen_descriptions = description
+                elif seen_descriptions != description:
+                    multiple = True
+                    break
+        fasta_file.close()
+        if multiple:
+            break
+
+
+    with open(filename) as input_file, open(output_filename, 'w') as output_file:
+        for line in input_file:
+            if line.startswith('>'):
+                # description
+                description_line = line
+                mirna_line = next(input_file)
+                mirna_sequence = mirna_line.strip()
+
+                position = None
+
+                for source_filename in input_filenames:
+                    try:
+                        fasta_file = flexibleOpen(source_filename)
+                    except (OSError, IOError) as error:
+                        logging.error("Could not open %s" % source_filename)
+                        return False
+
+
+                    for input_sequence, description in extractSequences(fasta_file):
+                        index = input_sequence.find(mirna_sequence)
+                        if index >= 0:
+                            position = '%s-%s' % (index+1, index + len(mirna_sequence))
+                            if multiple:
+                                position = "%s (%s)" % (description, position)
+                            break
+
+                    fasta_file.close()
+                    if position:
+                        break
+
+                if position is not None:
+                    description_line = description_line.replace('Position:', 'Position: %s' % position)
+
+                output_file.write(description_line)
+                output_file.write(mirna_line)
+
+            else:
+                # some other part
+                output_file.write(line)
+
+    return output_filename
 
 
 def main(args):
@@ -643,6 +716,8 @@ def main(args):
     parser.add_argument("-s", "--structural-score", dest="structuralCutoff", type=float, 
         default=DefaultStructuralScoreCutoff,
         help="Cutoff structural score (default: %(default)s)")    
+    parser.add_argument("-p", "--position", dest="position", default=False, action="store_true",
+        help="Assign positions in input to final output (default: %(default)s)")        
     parser.add_argument("-e", "--email", dest="email", default=None,
         help="Email address to send results to")    
     parser.add_argument("--probabilities-filename", dest="probabilitiesFilename", default=DefaultProbabilitiesFilename,
@@ -768,6 +843,16 @@ def main(args):
         logging.error("Problems converting the structures to fasta files on %s" % filtered_filename)
         return 1
 
+    if parameters.position:
+        position_filename = positionsInFasta(fasta_filename, full_filenames)
+        if not position_filename:
+            logging.error("Problems finding positions of sequences in initial files for %s" % fasta_filename)
+            return 1
+
+        result_filename = position_filename
+    else:
+        result_filename = fasta_filename
+
 
     if len(full_filenames) > 1:
         common_name = common_prefix(full_filenames)
@@ -780,7 +865,7 @@ def main(args):
         common_name = full_filenames[0]
 
     final_fasta_filename = Configuration.map_file_to_output_directory("%sfinal.fasta" % common_name)
-    os.rename(fasta_filename, final_fasta_filename)
+    os.rename(result_filename, final_fasta_filename)
 
     end_time = time.time()
 
