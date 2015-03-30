@@ -24,8 +24,9 @@ gaguuuca  ggg       auuucggug  gaug g
 
     loop_finder = re.compile(r'\([^()]*\)')
     loops = [loop for loop in loop_finder.finditer(structure)]
-    if len(loops) != 1:
+    if len(loops) > 1:
         raise ValueError("We expected only one loop but we got this: %s" % structure)
+
 
     # initialise each of the lines. We keep them in list form until the end since strings are immutable
     unmatched_upstream = []
@@ -34,13 +35,6 @@ gaguuuca  ggg       auuucggug  gaug g
     matched_downstream = []
     unmatched_downstream = []
     sequence = sequence.lower()
-
-    loop = loops[0]
-    loop_start = loop.start() + 1
-    loop_end = loop.end() - 2
-
-    # draw the loop
-    loop_length = loop_end - loop_start + 1
 
     def add_character(unmatched_up, matched_up, link, matched_down, unmatched_down):
         """
@@ -52,6 +46,19 @@ gaguuuca  ggg       auuucggug  gaug g
         matched_downstream.append(matched_down)
         unmatched_downstream.append(unmatched_down)
 
+
+    if not loops:
+        # Linear structure
+        filler = ' ' * len(sequence)
+        return filler, sequence, filler, filler, filler
+
+
+    loop = loops[0]
+    loop_start = loop.start() + 1
+    loop_end = loop.end() - 2
+
+    # draw the loop
+    loop_length = loop_end - loop_start + 1
 
     centre_point = loop_start + loop_length // 2
     upstream_structure = structure[:centre_point][::-1] # reversed
