@@ -558,8 +558,11 @@ def filterOnScores(filename, cutoff_score):
     return output_filename
 
 
-def structuresToFasta(filename):
-    output_filename = "%s.fasta" % Configuration.map_file_to_output_directory(filename)
+def structuresToFastaish(filename):
+    """
+    Convert the information we have into something like a fasta
+    """ 
+    output_filename = "%s.fastaish" % Configuration.map_file_to_output_directory(filename)
 
     input_file = open(filename)
     output_file = open(output_filename, 'w')
@@ -600,6 +603,21 @@ def structuresToFasta(filename):
 
     output_file.close()
     input_file.close()
+
+    return output_filename
+
+
+def purifyFasta(filename):
+    """
+    Make a real fasta file
+    """
+    output_filename = "%s.fastaish" % Configuration.map_file_to_output_directory(filename)
+
+    with open(filename) as input_file, open(output_filename, 'w') as output_file:
+        for line in input_file:
+            if line.startswith('>'):
+                output_file.write(line)
+                output_file.write(next(input_file))
 
     return output_filename
 
@@ -838,21 +856,25 @@ def main(args):
         logging.error("Problems filtering structures on %s" % scores_filename)
         return 1
 
-    fasta_filename = structuresToFasta(filtered_filename)
-    if not fasta_filename:
+    structure_filename = structuresToFastaish(filtered_filename)
+    if not structure_filename:
         logging.error("Problems converting the structures to fasta files on %s" % filtered_filename)
         return 1
 
     if parameters.position:
-        position_filename = positionsInFasta(fasta_filename, full_filenames)
+        position_filename = positionsInFasta(structure_filename, full_filenames)
         if not position_filename:
-            logging.error("Problems finding positions of sequences in initial files for %s" % fasta_filename)
+            logging.error("Problems finding positions of sequences in initial files for %s" % structure_filename)
             return 1
 
         result_filename = position_filename
     else:
-        result_filename = fasta_filename
+        result_filename = structure_filename
 
+    pure_fasta_filename = purifyFasta(result_filename)    
+    if not pure_fasta_filename:
+        logging.error("Problems making a pure fasta out of %s" % result_filename)
+        return 1
 
     if len(full_filenames) > 1:
         common_name = common_prefix(full_filenames)
@@ -864,8 +886,11 @@ def main(args):
     else:
         common_name = full_filenames[0]
 
-    final_fasta_filename = Configuration.map_file_to_output_directory("%sfinal.fasta" % common_name)
-    os.rename(result_filename, final_fasta_filename)
+    final_fasta_filename = Configuration.map_file_to_output_directory("%s.final.fasta" % common_name)
+    os.rename(pure_fasta_filename, final_fasta_filename)
+
+    final_structure_filename = Configuration.map_file_to_output_directory("%s.final.structures" % common_name)
+    os.rename(result_filename, final_structure_filename)    
 
     end_time = time.time()
 
