@@ -2,13 +2,14 @@
 #CID-miRNA: A web server for prediction of novel miRNA precursors in human genome 
 http://melb.agrf.org.au:8888/
 
-Please cite this article as:
+CIDmiRNA is a tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
+
+If you use the results of this software in a published paper, please cite the following article:
 
     Tyagi S. et. al., Biochemical and Biophysical Research Communications                       
     Volume 372, Issue 4, 8 August 2008, Pages 831-834                                           
 
-
-CIDmiRNA is a tool for computer-assisted identification of micro-RNA using an SCFG model and has been designed to analyze either a single sequence or complete genome.
+For help or comments, please use the following group: https://groups.google.com/forum/#!forum/cid-mirna
 
 It is written in Python. It runs on Python 2.7.x.
 
@@ -65,7 +66,3 @@ between the two should be at least equal to the stem length chosen.
 ###Score cut-off
 
 The optimal cutoff for human miRNAs is -0.609999.
-
-
-Please contact Dr Sonika Tyagi (sonika.tyagi@gmail.com) for any queries
-regarding the usage of the tool.
