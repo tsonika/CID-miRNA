@@ -316,6 +316,33 @@ def runCutoffPassscore(filename, score):
     return Configuration.runCommand('cutoffpassscore', filename, [str(score)], "cof")
 
 
+def sortEntries(filename):
+    """
+    Sort entries by descending normalised score 
+    """
+
+    # We are only sorting after the cutoff has been applied. We'll assume we can hold these
+    # all in memory
+    output_filename = '%s.sorted' % Configuration.map_file_to_output_directory(filename)
+
+    candidates = []
+    with open(filename) as input_file:
+        for line in input_file:
+            if 'Sequence' in line:
+                sequence = next(input_file)
+                score_line = next(input_file)
+                bits = score_line.strip().split()
+                normalised_score = float(bits[6])
+                candidates.append((normalised_score, [line, sequence, score_line]))
+
+    candidates.sort(reverse=True)
+    with open(output_filename, 'w') as output_file:
+        for score, candidate in candidates:
+            for line in candidate:
+                output_file.write(line)
+
+    return output_filename
+
 
 def convertToFasta(filename):
     output_filename = "%s.fasta" % Configuration.map_file_to_output_directory(filename)
@@ -819,9 +846,14 @@ def main(args):
         logging.error("Cuttoff run failed on %s" % grammar_filename)
         return 1
 
-    grammar_fasta_filename = convertToFasta(cutoff_filename)
+    sorted_filename = sortEntries(cutoff_filename)
+    if not sorted_filename:
+        logging.error("Sorting entries of %s failed" % cutoff_filename)
+        return 1
+
+    grammar_fasta_filename = convertToFasta(sorted_filename)
     if not grammar_fasta_filename:
-        logging.error("Problems converting %s to fasta" % cutoff_filename)
+        logging.error("Problems converting %s to fasta" % sorted_filename)
         return 1
 
     rfold_filename = grammarToRFold(grammar_fasta_filename)
