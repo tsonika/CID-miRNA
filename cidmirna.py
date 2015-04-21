@@ -612,8 +612,8 @@ def structuresToFastaish(filename):
                 structure_score = bits[1].strip()
             else:
                 structure_score = '0'
-            
-            fasta_line = ">Predicted-miRNA Position:%(locus)s Length:%(length)s GrammarScore:%(score)s NormalisedGrammarScore:%(normalise_score)s StructuralScore:%(structure_score)s ID:%(description)s\n" % {
+
+            fasta_line = ">Predicted-miRNA_position_%(locus)s Length:%(length)s GrammarScore:%(score)s NormalisedGrammarScore:%(normalise_score)s StructuralScore:%(structure_score)s ID:%(description)s\n" % {
                 'locus' : '',
                 'length' : len(sequence.strip()),
                 'score' : score,
@@ -704,7 +704,7 @@ def positionsInFasta(filename, input_filenames):
                         if index >= 0:
                             position = '%s-%s' % (index+1, index + len(mirna_sequence))
                             if multiple:
-                                position = "%s (%s)" % (description, position)
+                                position = "%s_%s" % (description, position)
                             break
 
                     fasta_file.close()
@@ -712,7 +712,7 @@ def positionsInFasta(filename, input_filenames):
                         break
 
                 if position is not None:
-                    description_line = description_line.replace('Position:', 'Position: %s' % position)
+                    description_line = description_line.replace('_position_', '_position_%s' % position)
 
                 output_file.write(description_line)
                 output_file.write(mirna_line)
