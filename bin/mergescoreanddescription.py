@@ -11,11 +11,7 @@ def merge(score_filename, description_filename, output_filename):
     open(output_filename, 'w') as output_file:
         for score_line in score_file:
             if score_line.strip().startswith("Sequence :"):
-                try:
-                    description = next(description_file)
-                except StopIteration:
-                    # newcyk2 sometimes repeats the last sequence. Harmless, just stop now
-                    break
+                description = next(description_file)
                 sequence = next(score_file)
                 score = next(score_file)
                 output_file.write(" Sequence : %s" % description)
