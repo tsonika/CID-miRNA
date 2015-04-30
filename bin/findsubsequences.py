@@ -9,6 +9,9 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 import sys, os
 import logging
 
+if '.' not in sys.path:
+    sys.path.append('.')
+
 from mirna.utils import rnaCrickMatch, extractSequences, flexibleOpen, convertToRNA, generateRNACombinations
 from mirna.foldingsubsequences import generatePossibleSubsequences, DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
 

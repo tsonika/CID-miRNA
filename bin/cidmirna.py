@@ -12,6 +12,9 @@ import subprocess
 import re
 import time
 
+if '.' not in sys.path:
+    sys.path.append('.')
+
 from mirna.mirnastructure import diagramFromStructure
 from mirna.foldingsubsequences import DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
 from mirna.utils import generateRNACombinations, extractSequences, flexibleOpen
