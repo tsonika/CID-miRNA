@@ -31,7 +31,7 @@ Run 'make' before running the program the first time to compile cutoffpassscore 
 You can get a complete list of options and defaults by running:
 
 ```
-./cidmirna.py --help
+./bin/cidmirna.py --help
 ```
 
 By default, all output is directed to the current directory. You can change that by specifying
@@ -44,7 +44,7 @@ what queue to run on by passing it as --sge-queue <queuename>, and direct the SG
 Try Yourself:
 
 ```
-./cidmirna.py testin.fa
+./bin/cidmirna.py testin.fa
 ```
 
 

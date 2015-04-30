@@ -10,7 +10,7 @@ import sys, os
 import logging
 import re
 
-from utils import rnaCrickMatch, extractSequences, flexibleOpen, convertToRNA, generateRNACombinations
+from mirna.utils import rnaCrickMatch, extractSequences, flexibleOpen, convertToRNA, generateRNACombinations
 
 DefaultEndBasePairs = 3
 DefaultMinLength = 60

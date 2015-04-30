@@ -9,7 +9,7 @@ import subprocess
 import time
 import re
 
-from runner import Runner, Command
+from processhandling.runner import Runner, Command
 
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
 

@@ -136,7 +136,7 @@ class LocalRunner(Runner):
         """
         Run commands and wait for them to finish
         """
-        import asyncproc
+        import processhandling.asyncproc as asyncproc
 
         OutputParameters = {
             'close_fds' : True,

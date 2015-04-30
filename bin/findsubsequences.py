@@ -9,8 +9,8 @@ from __future__ import print_function, absolute_import, division, unicode_litera
 import sys, os
 import logging
 
-from utils import rnaCrickMatch, extractSequences, flexibleOpen, convertToRNA, generateRNACombinations
-from foldingsubsequences import generatePossibleSubsequences, DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
+from mirna.utils import rnaCrickMatch, extractSequences, flexibleOpen, convertToRNA, generateRNACombinations
+from mirna.foldingsubsequences import generatePossibleSubsequences, DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
 
 
 def main(args):

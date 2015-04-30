@@ -12,10 +12,10 @@ import subprocess
 import re
 import time
 
-from mirnastructure import diagramFromStructure
-from foldingsubsequences import DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
-from utils import generateRNACombinations, extractSequences, flexibleOpen
-from runner import LocalRunner, Command
+from mirna.mirnastructure import diagramFromStructure
+from mirna.foldingsubsequences import DefaultMinLength, DefaultMaxLength, DefaultEndBasePairs
+from mirna.utils import generateRNACombinations, extractSequences, flexibleOpen
+from processhandling.runner import LocalRunner, Command
 
 DefaultUpperDGCutoff = -13.559
 DefaultGrammarScoreCutoff = -0.609999
@@ -74,8 +74,6 @@ class Configuration(object):
             script_path = os.path.dirname(__file__)
             if not script_path:
                 script_path = '.'
-
-            script_path = os.path.join(script_path, 'bin')
 
             full_command = [os.path.join(script_path, command)]
             if command.endswith('.py'):
@@ -787,7 +785,7 @@ def main(args):
 
     if parameters.sge:
         # Reroute all command-calling to SGE
-        import sge
+        import processhandling.sge as sge
         if parameters.sge_logs:
             sge_logs_directory = parameters.sge_logs
             if not os.path.isdir(sge_logs_directory):
