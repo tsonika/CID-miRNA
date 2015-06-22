@@ -768,6 +768,8 @@ def main(args):
         help="Email address to send results to")    
     parser.add_argument("--probabilities-filename", dest="probabilitiesFilename", default=DefaultProbabilitiesFilename,
         help="Filename where to find the CFG probabilities (default: %(default)s)")
+    parser.add_argument('-t', '--temporary-directory', dest="temporary_directory", default=None,
+        help="""Where to store the temporary files (default: the output directory)""")    
     parser.add_argument('--sge', dest="sge", default=False, action="store_true",
         help="Use Sun Grid Engine")
     parser.add_argument('--queue', dest="sge_queue", default=None,
@@ -807,7 +809,10 @@ def main(args):
     if parameters.max_processes:
         Configuration.MaxProcesses = parameters.max_processes
 
-    Configuration.OutputDirectory = os.path.expanduser(parameters.output_directory)
+    if parameters.temporary_directory:
+        Configuration.OutputDirectory = os.path.expanduser(parameters.temporary_directory)
+    else:
+        Configuration.OutputDirectory = os.path.expanduser(parameters.output_directory)
 
     if not os.path.exists(Configuration.OutputDirectory):
         logging.info("Creating %s" % Configuration.OutputDirectory)
@@ -919,6 +924,8 @@ def main(args):
     else:
         common_name = full_filenames[0]
 
+    # map final files to the output directory
+    Configuration.OutputDirectory = os.path.expanduser(parameters.output_directory)
     final_fasta_filename = Configuration.map_file_to_output_directory("%s.final.fasta" % common_name)
     os.rename(pure_fasta_filename, final_fasta_filename)
 
