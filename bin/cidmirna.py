@@ -353,7 +353,7 @@ def convertToFasta(filename):
 
     for line in input_file:
         if 'Sequence' in line:
-            description = line[len('Sequence :'):].strip()
+            description = line.lstrip()[len('Sequence :'):].strip()
             sequence = next(input_file)
 
             score_line = next(input_file)
