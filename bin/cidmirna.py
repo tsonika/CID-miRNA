@@ -61,6 +61,24 @@ DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 #--------------------------------------------------------------------------------------------------------------------------
 
 
+def continuation_checker(extension):
+    """
+    Decorator to make functions sensitive to being in continue-form.
+    """
+    def continuer(func):
+        def replacement(filename, continuing, *args, **kwargs):
+            output_filename = "%s%s" % (Configuration.map_file_to_output_directory(filename), extension)
+            if continuing and os.path.exists(output_filename):
+                return output_filename
+
+            return func(filename, *args, **kwargs)
+
+        replacement.__name__ = func.__name__
+        replacement.__doc__ = func.__doc__
+        return replacement
+    return continuer
+
+
 class Configuration(object):
     """
     Class/Singleton that makes it easier to configure what method is used to run external programs
@@ -88,7 +106,7 @@ class Configuration(object):
         return full_command
 
     @classmethod
-    def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True):
+    def runCommand(cls, command, filename, parameters, output_extension, output_is_stdout=False, input_filename=None, manual_parameters=False, local=True, continuing=False):
 
         """
         Standard command run wrapper.
@@ -97,21 +115,23 @@ class Configuration(object):
         command = cls.get_pathed_command(command, local=local)
 
         output_filename = "%s.%s" % (cls.map_file_to_output_directory(filename), output_extension)
-        if manual_parameters:
-            full_command = command + parameters
-        else:
-            full_command = command + [filename] + parameters
 
-        if output_is_stdout:
-            piped_output = output_filename
-        else:
-            full_command.append(output_filename)
-            piped_output = None
+        if not continuing or not os.path.exists(output_filename):
+            if manual_parameters:
+                full_command = command + parameters
+            else:
+                full_command = command + [filename] + parameters
 
-        exit_code = cls.Runner.run(full_command, output_filename=piped_output, 
-            input_filename=input_filename)
-        if exit_code != 0:
-            return False
+            if output_is_stdout:
+                piped_output = output_filename
+            else:
+                full_command.append(output_filename)
+                piped_output = None
+
+            exit_code = cls.Runner.run(full_command, output_filename=piped_output, 
+                input_filename=input_filename)
+            if exit_code != 0:
+                return False
 
         return output_filename        
 
@@ -166,7 +186,7 @@ def common_prefix(filenames):
     return ''.join(prefix)
 
 
-def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, max_length, all_combinations=True):
+def generatePossibleSubsequencesWrapper(filenames, continuing, end_base_pairs, min_length, max_length, all_combinations=True):
     """
     Python version of parser4auto.cpp. 
     Emit all substrings of between minLength and maxLength characters from lines in filenames 
@@ -211,15 +231,16 @@ def generatePossibleSubsequencesWrapper(filenames, end_base_pairs, min_length, m
         else:
             output_filenames.extend("%s.%s" % (output_filename, suffix) for suffix in rnaSequences)
 
-    if not Configuration.multi_run(commands):
-        logging.error("Some part of the subsequence generation failed")
-        return False
+    if not continuing or not all(os.path.exists(filename) for filename in output_filenames):
+        if not Configuration.multi_run(commands):
+            logging.error("Some part of the subsequence generation failed")
+            return False
     
 
     return output_filenames
 
 
-def runUnique(filenames):
+def runUnique(filenames, continuing):
     output_filenames = []
     commands = []
     for filename in filenames:
@@ -228,15 +249,16 @@ def runUnique(filenames):
         commands.append(command)
         output_filenames.append(output_filename)
 
-    if not Configuration.multi_run(commands, local=True):
-        logging.error("Some problem with uniquifying")
-        return False
+    if not continuing or not all(os.path.exists(filename) for filename in output_filenames):    
+        if not Configuration.multi_run(commands, local=True):
+            logging.error("Some problem with uniquifying")
+            return False
 
     return output_filenames
 
 
 
-def scoreSequences(filenames, probabilities_filename):
+def scoreSequences(filenames, continuing, probabilities_filename):
     """
     Score each sequence.
     """
@@ -257,9 +279,10 @@ def scoreSequences(filenames, probabilities_filename):
         description_filenames.append(description_filename)
         separate_commands.append(command)
 
-    if not Configuration.multi_run(separate_commands, local=True):
-        logging.error("Some problem separating sequences from descriptions")
-        return False
+    if not continuing or not all(os.path.exists(filename) for filename in sequence_filenames + description_filenames):    
+        if not Configuration.multi_run(separate_commands, local=True):
+            logging.error("Some problem separating sequences from descriptions")
+            return False
 
     score_filenames = []
 
@@ -270,9 +293,10 @@ def scoreSequences(filenames, probabilities_filename):
         score_filenames.append(score_filename)
         commands.append(command)
 
-    if not Configuration.multi_run(commands, local=True):
-        logging.error("Some problem with scoresequence  ")
-        return False
+    if not continuing or not all(os.path.exists(filename) for filename in score_filenames):    
+        if not Configuration.multi_run(commands, local=True):
+            logging.error("Some problem with scoresequence  ")
+            return False
 
     output_filenames = []
     join_commands = []
@@ -283,9 +307,10 @@ def scoreSequences(filenames, probabilities_filename):
         join_commands.append(join_command)
         output_filenames.append(output_filename)
 
-    if not Configuration.multi_run(join_commands, local=True):
-        logging.error("Some problem joining scores and descriptions")
-        return False
+    if not continuing or not all(os.path.exists(filename) for filename in output_filenames):    
+        if not Configuration.multi_run(join_commands, local=True):
+            logging.error("Some problem joining scores and descriptions")
+            return False
 
 
     if len(output_filenames) > 1:
@@ -299,24 +324,28 @@ def scoreSequences(filenames, probabilities_filename):
             prefix += '.'
 
         output_filename = Configuration.map_file_to_output_directory('%scombined.grm' % prefix)
-        command = ['cat'] + output_filenames
-        logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
-        output_file = open(output_filename,'w')
-        exit_code = subprocess.call(command, stdout=output_file)
-        output_file.close()
-        logging.info("Finished catting %s into %s" % (', '.join(output_filenames), output_filename))
-        if exit_code != 0:
-            logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
-            return None
+
+        if not continuing or not os.path.exists(output_filename):
+            command = ['cat'] + output_filenames
+            logging.info("Catting %s into %s" % (', '.join(output_filenames), output_filename))
+            output_file = open(output_filename,'w')
+            exit_code = subprocess.call(command, stdout=output_file)
+            output_file.close()
+            logging.info("Finished catting %s into %s" % (', '.join(output_filenames), output_filename))
+            if exit_code != 0:
+                logging.error("Problem concatenating together %s into %s" % (', '.join(output_filenames), output_filename))
+                return None
     else:
         output_filename = output_filenames[0]
 
     return output_filename
 
+@continuation_checker('.cof')
 def runCutoffPassscore(filename, score):
     return Configuration.runCommand('cutoffpassscore', filename, [str(score)], "cof")
 
 
+@continuation_checker('.sorted')
 def sortEntries(filename):
     """
     Sort entries by descending normalised score 
@@ -345,6 +374,7 @@ def sortEntries(filename):
     return output_filename
 
 
+@continuation_checker('.fasta')
 def convertToFasta(filename):
     output_filename = "%s.fasta" % Configuration.map_file_to_output_directory(filename)
 
@@ -369,7 +399,7 @@ def convertToFasta(filename):
 
     return output_filename
 
-
+@continuation_checker('.4rfold')
 def grammarToRFold(filename):
     """
     Convert FASTA to something that is recognised by RNAfold with constraints options
@@ -412,7 +442,7 @@ def grammarToRFold(filename):
 
     return output_filename
 
-
+@continuation_checker('.rfold')
 def runRNAFold(filename):
     output_filename = Configuration.runCommand('RNAfold', filename, ['-C', '--noPS'], 'rfold', output_is_stdout=True, manual_parameters=True, local=False, input_filename=filename)
     return output_filename
@@ -471,6 +501,7 @@ def keepOneLoop(structure):
     return structure
 
 
+@continuation_checker('.mloops')
 def mergeLoops(filename):
     """
     Make sure there's only one loop per structure. If there are more, keep the centre one and 
@@ -517,6 +548,7 @@ def mergeLoops(filename):
     return output_filename
 
 
+@continuation_checker('.diags')
 def structuresToDiagrams(filename):
     """
     Draw diagrams for a file of dot-bracket structures 
@@ -545,7 +577,7 @@ def structuresToDiagrams(filename):
 
     return output_filename
 
-
+@continuation_checker('.pass')
 def filterOnScores(filename, cutoff_score):
     """
     Filter all structures below the cutoff_score out
@@ -586,6 +618,7 @@ def filterOnScores(filename, cutoff_score):
     return output_filename
 
 
+@continuation_checker('.fastaish')
 def structuresToFastaish(filename):
     """
     Convert the information we have into something like a fasta
@@ -635,6 +668,7 @@ def structuresToFastaish(filename):
     return output_filename
 
 
+@continuation_checker('.fastaish')
 def purifyFasta(filename):
     """
     Make a real fasta file
@@ -650,13 +684,14 @@ def purifyFasta(filename):
     return output_filename
 
 
+@continuation_checker('.position')
 def positionsInFasta(filename, input_filenames):
     """
     Naive slow method to find a position for every result. 
     FIXME: Optimise this if it's going to be used regularly
     """
 
-    output_filename = "%s.position" % filename
+    output_filename = "%s.position" % Configuration.map_file_to_output_directory(filename)
 
     # first find if there are multiple lines in the input. Otherwise we'll skip outputting the 
     # description line
@@ -746,6 +781,8 @@ def main(args):
                       help="Verbosity.  Invoke many times for higher verbosity")
     parser.add_argument('-o', '--output-directory', dest="output_directory", default=Configuration.OutputDirectory,
         help="""Where to store all the output (default: %(default)s)""")
+    parser.add_argument('-c', '--continue', dest="continuing", default=False, action="store_true",
+        help="""Continue previous run by assuming any intermediate file found is valid (default: %(default)s)""")    
     parser.add_argument("-dG", "--upper-dg", dest="upperDGCutoff", type=float, default=DefaultUpperDGCutoff,
         help="Upper dG cutoff value (default: %(default)s)")
     parser.add_argument("-b", "--end-base-pairs", dest="endBasePairs", type=int, default=DefaultEndBasePairs,
@@ -831,76 +868,76 @@ def main(args):
 
     start_time = time.time()
 
-    parsed_filenames = generatePossibleSubsequencesWrapper(full_filenames, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
+    parsed_filenames = generatePossibleSubsequencesWrapper(full_filenames, parameters.continuing, parameters.endBasePairs, parameters.minLength, parameters.maxLength, all_combinations=not parameters.oneCandidatePerLine)
 
     if not parsed_filenames:
         logging.error("Couldn't parse sequences from %s." % ', '.join(parameters.sequences))
         return 1
 
-    uniqued_filenames = runUnique(parsed_filenames)
+    uniqued_filenames = runUnique(parsed_filenames, parameters.continuing)
     if not uniqued_filenames:
         logging.error("Couldn't make unique versions of %s" % ', '.join(parsed_filenames))
         return 1
 
-    grammar_filename = scoreSequences(uniqued_filenames, parameters.probabilitiesFilename)
+    grammar_filename = scoreSequences(uniqued_filenames, parameters.continuing, parameters.probabilitiesFilename)
     if not grammar_filename:
         logging.error("Grammar run failed on %s" % ', '.join(uniqued_filenames))
         return 1
 
-    cutoff_filename = runCutoffPassscore(grammar_filename, parameters.grammarCutoff)
+    cutoff_filename = runCutoffPassscore(grammar_filename, parameters.continuing, parameters.grammarCutoff)
     if not cutoff_filename:
         logging.error("Cuttoff run failed on %s" % grammar_filename)
         return 1
 
-    sorted_filename = sortEntries(cutoff_filename)
+    sorted_filename = sortEntries(cutoff_filename, parameters.continuing)
     if not sorted_filename:
         logging.error("Sorting entries of %s failed" % cutoff_filename)
         return 1
 
-    grammar_fasta_filename = convertToFasta(sorted_filename)
+    grammar_fasta_filename = convertToFasta(sorted_filename, parameters.continuing)
     if not grammar_fasta_filename:
         logging.error("Problems converting %s to fasta" % sorted_filename)
         return 1
 
-    rfold_filename = grammarToRFold(grammar_fasta_filename)
+    rfold_filename = grammarToRFold(grammar_fasta_filename, parameters.continuing)
     if not rfold_filename:
         logging.error("Problems converting FASTA to something for rfold on %s" % grammar_fasta_filename)
         return 1
 
-    rfold_output_filename = runRNAFold(rfold_filename)
+    rfold_output_filename = runRNAFold(rfold_filename, parameters.continuing)
     if not rfold_output_filename:
         logging.error("Problems running RNAfold on %s" % rfold_filename)
         return 1
 
-    merged_loops_filename = mergeLoops(rfold_output_filename)
+    merged_loops_filename = mergeLoops(rfold_output_filename, parameters.continuing)
     if not merged_loops_filename:
         logging.error("Problems merging loops on %s" % rfold_output_filename)
         return 1
 
-    diagram_filename = structuresToDiagrams(merged_loops_filename)
+    diagram_filename = structuresToDiagrams(merged_loops_filename, parameters.continuing)
     if not diagram_filename:
         logging.error("Problems converting structures to diagrams on %s" % merged_loops_filename)
         return 1
 
 
-    scores_filename = Configuration.runCommand('Scores4mStruct', diagram_filename, [], 'scores')
+    scores_filename = Configuration.runCommand('Scores4mStruct', diagram_filename, [], 'scores', continuing=parameters.continuing)
     if not scores_filename:
         logging.error("Problems running Scores4mStruct on %s" % diagram_filename)
         return 1
 
 
-    filtered_filename = filterOnScores(scores_filename, parameters.structuralCutoff)
+    filtered_filename = filterOnScores(scores_filename, parameters.continuing, parameters.structuralCutoff)
     if not filtered_filename:
         logging.error("Problems filtering structures on %s" % scores_filename)
         return 1
 
-    structure_filename = structuresToFastaish(filtered_filename)
+    structure_filename = structuresToFastaish(filtered_filename, parameters.continuing)
     if not structure_filename:
         logging.error("Problems converting the structures to fasta files on %s" % filtered_filename)
         return 1
 
     if parameters.position:
-        position_filename = positionsInFasta(structure_filename, full_filenames)
+        position_filename = positionsInFasta(structure_filename, parameters.continuing, full_filenames)
         if not position_filename:
             logging.error("Problems finding positions of sequences in initial files for %s" % structure_filename)
             return 1
@@ -909,7 +946,7 @@ def main(args):
     else:
         result_filename = structure_filename
 
-    pure_fasta_filename = purifyFasta(result_filename)    
+    pure_fasta_filename = purifyFasta(result_filename, parameters.continuing)    
     if not pure_fasta_filename:
         logging.error("Problems making a pure fasta out of %s" % result_filename)
         return 1
