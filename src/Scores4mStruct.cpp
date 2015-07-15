@@ -50,8 +50,8 @@ int main (int argc, char *argv[])
         while (isspace (inpline2[0]))
             inpline2.erase (0, 1);      //Removes all leading spaces
 
-        if (inpline2.empty ())
-            continue;           // Skip empty lines
+        if (inpline2.empty () && !tracking)
+            continue;           // Skip empty lines, but only until we are into the structures section
 
         if (inpline2.find (">") == 0) { //miRNA name line
             if (tracking) {     //End and write an miRNA structure
