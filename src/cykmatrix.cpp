@@ -1,6 +1,10 @@
 
 #include "cykmatrix.h"
 
+multimap < string, int >NTmap;  //non terminal rules being mapped..RuleRHS into the rule number
+multimap < string, int >NTmapfirst;     //non terminal with first element
+multimap < string, int >Tmap;   //only terminal rules mapped..Same as above
+
 
 //The == and != operators overloaded for CykListElement keeping in view the frequent equality checks required
 bool CykListElement::operator== (const CykListElement & InCle) const const
@@ -40,17 +44,13 @@ vector < SCFGrule > RuleList;
 
 int AbsPos (int i, int j)       //This function returns the absolute position of the vector CykCell with coordinates i,j
 {
-    int r, c, abspos = 0;
-    for (r = 1; r <= SeqLen; r++)
-        for (c = 1; c <= (SeqLen - r + 1); c++) {
-            ++abspos;
-            if (r == i && c == j)
-                return (abspos - 1);
-        }
+//Please do not second guess this formula..have formulated to reduce time..
+    return (SeqLen * (i - 1) - ((i - 1) * (i - 2)) / 2 + (j - 1));
 }
 
 void XYPos (int pos, int &i, int &j)    //This function takes the absolute position of the vector CykCell and feeds the XY coordinates into i,j
 {
+    cout << "in" << endl;
     int r, c, abspos = 0;
     for (r = 1; r <= SeqLen; r++)
         for (c = 1; c <= (SeqLen - r + 1); c++) {
@@ -68,88 +68,88 @@ bool FillFRCellDList (CykMatrixCell & matcel, int pos)  //This function fills th
     string tmpNT;
     bool found;
     bool NeedRepeat = false;
-    int itr1, itr2;
-
+    int itr1, itr2, x = 0;
     for (itr1 = 0; itr1 < matcel.UpList.size (); itr1++)        //Run through the Upper List of the cell
     {
         tmpNT = matcel.UpList[itr1].ruleLHS;    //This is one such non terminal that gives the terminal represented by the current cell
+        pair < multimap < string, int >::const_iterator, multimap < string,
+            int >::const_iterator > p = NTmap.equal_range (tmpNT);
+        for (multimap < string, int >::const_iterator i = p.first;
+             i != p.second; ++i) {
+            x = i->second - 1;
+            CykListElement tempcle;
+            tempcle.ruleLHS = RuleList[x].ruleLHS;
+            tempcle.ruleRHSpreDot = tmpNT;
+            tempcle.ruleRHSpostDot = "\0";      //Since this is a terminal rule, RHS not required to be filled
+            tempcle.score = RuleList[x].RuleScore;
+            RuleList[x].SetUsedOnceFlag ();
+            tempcle.coordinates.row = 1;
+            tempcle.coordinates.col = pos;
+            tempcle.coordinates.index = matcel.UpList.size ();
+            tempcle.coordinates.type = _UPLIST;
+            tempcle.s1 = matcel.UpList[itr1].coordinates.row;
+            tempcle.s2 = matcel.UpList[itr1].coordinates.col;
+            tempcle.s3 = itr1;
+            tempcle.flag = 0;
 
-        for (int x = 0; x < RuleList[0].RuleCount; x++) //Run through each rule
-        {
-            if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS == tmpNT)  //If the non-terminal in the upperlist is directly given by a non-terminal in the RuleList
+            found = false;
+            for (itr2 = 0; itr2 < matcel.UpList.size (); itr2++)        //This loop checks if the CykList Element is not already present
             {
-                CykListElement tempcle;
-                tempcle.ruleLHS = RuleList[x].ruleLHS;
-                tempcle.ruleRHSpreDot = tmpNT;
-                tempcle.ruleRHSpostDot = "\0";  //Since this is a terminal rule, RHS not required to be filled
-                tempcle.score = RuleList[x].RuleScore;
-                RuleList[x].SetUsedOnceFlag ();
-                tempcle.coordinates.row = 1;
-                tempcle.coordinates.col = pos;
-                tempcle.coordinates.index = matcel.UpList.size ();
-                tempcle.coordinates.type = _UPLIST;
-                ostringstream oss;
-                oss << "*" << matcel.UpList[itr1].coordinates.
-                    row << " " << matcel.UpList[itr1].coordinates.
-                    col << " " << itr1 << "*";
-                tempcle.Parents = oss.str ();
-
-                found = false;
-                for (itr2 = 0; itr2 < matcel.UpList.size (); itr2++)    //This loop checks if the CykList Element is not already present
-                {
-                    if (matcel.UpList[itr2] == tempcle) {
-                        found = true;
-                        break;
-                    } else
-                        found = false;
-                }
-
-                if (!found) {
-                    matcel.UpList.push_back (tempcle);
-                    ++(matcel.UpListCount);
-                    NeedRepeat = true;
-                }
-            } else {
-                if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS.find (tmpNT) == 0)     //The non-terminal in the upperlist is NOT directly given by a non-terminal in the RuleList, but is the first non-terminal on RHS
-                {
-                    CykListElement tempcle;
-                    ElementCoordinates tempec;
-                    tempcle.ruleLHS = RuleList[x].ruleLHS;
-                    tempcle.ruleRHSpreDot = tmpNT;
-                    tempcle.ruleRHSpostDot =
-                        RuleList[x].ruleRHS.substr (tmpNT.length ());
-
-                    tempcle.score = RuleList[x].RuleScore;
-                    RuleList[x].SetUsedOnceFlag ();
-                    tempcle.coordinates.row = 1;
-                    tempcle.coordinates.col = pos;
-                    tempcle.coordinates.index = matcel.DownList.size ();
-                    tempcle.coordinates.type = _DOWNLIST;
-                    ostringstream oss;
-                    oss << "*" << matcel.UpList[itr1].coordinates.
-                        row << " " << matcel.UpList[itr1].coordinates.
-                        col << " " << itr1 << " &*";
-                    tempcle.Parents = oss.str ();
-
+                if (matcel.UpList[itr2] == tempcle) {
+                    found = true;
+                    break;
+                } else
                     found = false;
-                    for (itr2 = 0; itr2 < matcel.DownList.size (); itr2++)      //This loop checks if the CykList Element is not already present
-                    {
-                        if (matcel.DownList[itr2] == tempcle) {
-                            found = true;
-                            break;
-                        } else
-                            found = false;
-                    }
-
-                    if (!found) //If the CykList Element is not already prsent
-                    {
-                        matcel.DownList.push_back (tempcle);
-                        ++(matcel.DownListCount);
-                    }
-                }
             }
 
-        }                       //End- Run thru each rule
+            if (!found) {
+                matcel.UpList.push_back (tempcle);
+                ++(matcel.UpListCount);
+                NeedRepeat = true;
+            }
+        }
+        pair < multimap < string, int >::const_iterator, multimap < string,
+            int >::const_iterator > q = NTmapfirst.equal_range (tmpNT);
+        for (multimap < string, int >::const_iterator j = q.first;
+             j != q.second; ++j) {
+
+            x = (*j).second - 1;
+            CykListElement tempcle;
+            ElementCoordinates tempec;
+            tempcle.ruleLHS = RuleList[x].ruleLHS;
+            tempcle.ruleRHSpreDot = tmpNT;
+            tempcle.ruleRHSpostDot =
+                RuleList[x].ruleRHS.substr (tmpNT.length ());
+
+            tempcle.score = RuleList[x].RuleScore;
+            RuleList[x].SetUsedOnceFlag ();
+            tempcle.coordinates.row = 1;
+            tempcle.coordinates.col = pos;
+            tempcle.coordinates.index = matcel.DownList.size ();
+            tempcle.coordinates.type = _DOWNLIST;
+            tempcle.s1 = matcel.UpList[itr1].coordinates.row;
+            tempcle.s2 = matcel.UpList[itr1].coordinates.col;
+            tempcle.s3 = itr1;
+            tempcle.flag = 1;
+
+            found = false;
+            for (itr2 = 0; itr2 < matcel.DownList.size (); itr2++)      //This loop checks if the CykList Element is not already present
+            {
+                if (matcel.DownList[itr2] == tempcle) {
+                    found = true;
+                    break;
+                } else
+                    found = false;
+            }
+
+            if (!found)         //If the CykList Element is not already prsent
+            {
+                matcel.DownList.push_back (tempcle);
+                ++(matcel.DownListCount);
+            }
+
+        }
+        //   }//End- Run thru each rule
     }                           //End- Run thru the Uplist of the cell
     return (NeedRepeat);
 }
@@ -162,41 +162,43 @@ void FillFRCellUList (CykMatrixCell & matcel, char term, int pos)       //This f
     dummy = "*" + strterm + "*";
 
     bool found;
-    int itr;
+    int itr, x = 0;
+    pair < multimap < string, int >::const_iterator, multimap < string,
+        int >::const_iterator > p = Tmap.equal_range (dummy);
+    for (multimap < string, int >::const_iterator i = p.first; i != p.second;
+         ++i) {
+        x = int ((*i).second) - 1;
+        CykListElement tempcle;
+        tempcle.ruleLHS = RuleList[x].ruleLHS;
+        tempcle.ruleRHSpreDot = dummy;
+        tempcle.ruleRHSpostDot = "\0";  //Since this is a terminal rule, RHSpostDot not required to be filled
+        tempcle.score = RuleList[x].RuleScore;
+        RuleList[x].SetUsedOnceFlag ();
+        tempcle.coordinates.row = 1;
 
-    for (int x = 0; x < RuleList[0].RuleCount; x++)     //Run through each rule
-    {
-        if (RuleList[x].RuleType == _TERM_RULE && RuleList[x].ruleRHS == dummy) //If this is a terminal rule and the terminal is the same as our input terminal character (because terminal rules will always have 1 RHS symbol, a string search can be avoided.)
+        tempcle.coordinates.col = pos;
+        tempcle.coordinates.index = matcel.UpList.size ();
+        tempcle.coordinates.type = _UPLIST;
+        tempcle.s1 = 1;
+        tempcle.s2 = pos;
+        tempcle.s3 = tempcle.coordinates.index;
+        tempcle.flag = 1;
+
+        found = false;
+        for (itr = 0; itr < matcel.UpList.size (); itr++)       //This loop checks if the CykList Element is not already present
         {
-            CykListElement tempcle;
-            tempcle.ruleLHS = RuleList[x].ruleLHS;
-            tempcle.ruleRHSpreDot = dummy;
-            tempcle.ruleRHSpostDot = "\0";      //Since this is a terminal rule, RHSpostDot not required to be filled
-            tempcle.score = RuleList[x].RuleScore;
-            RuleList[x].SetUsedOnceFlag ();
-            tempcle.coordinates.row = 1;
-            tempcle.coordinates.col = pos;
-            tempcle.coordinates.index = matcel.UpList.size ();
-            tempcle.coordinates.type = _UPLIST;
-            ostringstream oss;
-            oss << "*1 " << pos << " " << tempcle.coordinates.index << " &*";
-            tempcle.Parents = oss.str ();
-
-            found = false;
-            for (itr = 0; itr < matcel.UpList.size (); itr++)   //This loop checks if the CykList Element is not already present
-            {
-                if (matcel.UpList[itr] == tempcle) {
-                    found = true;
-                    break;
-                } else
-                    found = false;
-            }
-
-            if (!found) {
-                matcel.UpList.push_back (tempcle);
-                ++(matcel.UpListCount);
-            }
+            if (matcel.UpList[itr] == tempcle) {
+                found = true;
+                break;
+            } else
+                found = false;
         }
+
+        if (!found) {
+            matcel.UpList.push_back (tempcle);
+            ++(matcel.UpListCount);
+        }
+
     }                           //End - Run through each rule
 }
 
@@ -224,57 +226,92 @@ void FillFirstRow (vector < CykMatrixCell > &mat)       //This function accepts 
 
 
 //*************** The Code for Filling Rest of the Matrix Begins ********************
+
+string make_parent (CykListElement temp)
+{
+    char b1[10], b2[10], b3[10];
+    string ss1, ss2, ss3;
+    itoa (temp.s1, b1, 10);
+    itoa (temp.s2, b2, 10);
+    itoa (temp.s3, b3, 10);
+    ss1 = b1, ss2 = b2, ss3 = b3;
+
+    string tempParents;
+    if (temp.flag == 0) {
+        tempParents = "*" + ss1 + " " + ss2 + " " + ss3 + "*";
+        return (tempParents);
+    } else if (temp.flag == 1) {
+        tempParents = "*" + ss1 + " " + ss2 + " " + ss3 + " &*";
+        return (tempParents);
+    }
+
+    else if (temp.flag == 2) {
+        tempParents = temp.Parents + "*" + ss1 + " " + ss2 + " " + ss3 + "*";
+        return (tempParents);
+    } else if (temp.flag == 3) {
+        tempParents = temp.Parents + "*" + ss1 + " " + ss2 + " " + ss3 + "&*";
+        return (tempParents);
+    }
+    return (tempParents);
+
+}
+
 bool FillRestCellProcess2 (const vector < CykMatrixCell > &mat, CykMatrixCell & cykmc, int i, int j)    //This function runs the defined Process-II for filling  the non-first-row matrix
 {
     string dummy;
     bool found;
-    int itr1, itr2;
+    int itr1, itr2, x = 0;
     bool NeedRepeat = false;
-
     for (itr1 = 0; itr1 < cykmc.UpList.size (); itr1++) {       //Run through the UpperList of cell i,j
         dummy = cykmc.UpList[itr1].ruleLHS;
+        int upchek = 0;
+        pair < multimap < string, int >::const_iterator, multimap < string,
+            int >::const_iterator > p = NTmap.equal_range (dummy);
+        for (multimap < string, int >::const_iterator i1 = p.first;
+             i1 != p.second; ++i1) {
+            upchek = 1;
+            x = int ((*i1).second) - 1;
+            CykListElement tempcle;
+            tempcle.ruleLHS = RuleList[x].ruleLHS;
+            tempcle.ruleRHSpreDot = dummy;
+            tempcle.ruleRHSpostDot = "\0";      //Since this non-terminal is given directly
 
-        for (int x = 0; x < RuleList[0].RuleCount; x++) //Run through each rule
-        {
-            if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS == dummy)  //If the non-terminal we are looking for is directly given by a non-terminal in the RuleList
+            tempcle.score = RuleList[x].RuleScore * cykmc.UpList[itr1].score;
+            RuleList[x].SetUsedOnceFlag ();
+            tempcle.coordinates.row = i;
+            tempcle.coordinates.col = j;
+            tempcle.coordinates.index = cykmc.UpList.size ();
+            tempcle.coordinates.type = _UPLIST;
+            tempcle.s1 = cykmc.UpList[itr1].coordinates.row;
+            tempcle.s2 = cykmc.UpList[itr1].coordinates.col;
+            tempcle.s3 = itr1;
+            tempcle.flag = 0;
+
+            found = false;
+            for (itr2 = 0; itr2 < cykmc.UpList.size (); itr2++) //This loop checks if the CykList Element is not already present
             {
-                CykListElement tempcle;
-                tempcle.ruleLHS = RuleList[x].ruleLHS;
-                tempcle.ruleRHSpreDot = dummy;
-                tempcle.ruleRHSpostDot = "\0";  //Since this non-terminal is given directly
+                if (cykmc.UpList[itr2] == tempcle) {
+                    found = true;
+                    break;
+                } else
+                    found = false;
+            }
 
-                tempcle.score =
-                    RuleList[x].RuleScore * cykmc.UpList[itr1].score;
-                RuleList[x].SetUsedOnceFlag ();
-                tempcle.coordinates.row = i;
-                tempcle.coordinates.col = j;
-                tempcle.coordinates.index = cykmc.UpList.size ();
-                tempcle.coordinates.type = _UPLIST;
-                ostringstream oss;
-                oss << "*" << cykmc.UpList[itr1].coordinates.
-                    row << " " << cykmc.UpList[itr1].coordinates.
-                    col << " " << itr1 << "*";
-                tempcle.Parents = oss.str ();
-
-                found = false;
-                for (itr2 = 0; itr2 < cykmc.UpList.size (); itr2++)     //This loop checks if the CykList Element is not already present
-                {
-                    if (cykmc.UpList[itr2] == tempcle) {
-                        found = true;
-                        break;
-                    } else
-                        found = false;
-                }
-
-                if (!found)     //If the CykList Element is not already prsent
-                {
-                    cykmc.UpList.push_back (tempcle);
-                    ++(cykmc.UpListCount);
-
-                    NeedRepeat = true;  //Since the upper list has been updated the process needs to be repeated
-                }
-            } else if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS.find (dummy) == 0)  //The non-terminal we are looking for is NOT directly given by a non-terminal in the RuleList, but is the first non-terminal on RHS
+            if (!found)         //If the CykList Element is not already prsent
             {
+                cykmc.UpList.push_back (tempcle);
+                ++(cykmc.UpListCount);
+
+                NeedRepeat = true;      //Since the upper list has been updated the process needs to be repeated
+            }
+        }
+        if (upchek == 0) {
+            pair < multimap < string, int >::const_iterator,
+                multimap < string, int >::const_iterator > q =
+                NTmapfirst.equal_range (dummy);
+            for (multimap < string, int >::const_iterator j1 = q.first;
+                 j1 != q.second; ++j1) {
+                x = (*j1).second - 1;
                 CykListElement tempcle;
                 tempcle.ruleLHS = RuleList[x].ruleLHS;
                 tempcle.ruleRHSpreDot = dummy;
@@ -287,11 +324,10 @@ bool FillRestCellProcess2 (const vector < CykMatrixCell > &mat, CykMatrixCell & 
                 tempcle.coordinates.col = j;
                 tempcle.coordinates.index = cykmc.DownList.size ();
                 tempcle.coordinates.type = _DOWNLIST;
-                ostringstream oss;
-                oss << "*" << cykmc.UpList[itr1].coordinates.
-                    row << " " << cykmc.UpList[itr1].coordinates.
-                    col << " " << itr1 << "*";
-                tempcle.Parents = oss.str ();
+                tempcle.s1 = cykmc.UpList[itr1].coordinates.row;
+                tempcle.s2 = cykmc.UpList[itr1].coordinates.col;
+                tempcle.s3 = itr1;
+                tempcle.flag = 0;
 
                 found = false;
                 for (itr2 = 0; itr2 < cykmc.UpList.size (); itr2++)     //This loop checks if the CykList Element is not already present
@@ -315,17 +351,46 @@ bool FillRestCellProcess2 (const vector < CykMatrixCell > &mat, CykMatrixCell & 
     return (NeedRepeat);
 }                               //FillRestCellProcess2- function ends
 
+int chek (vector < cartesian1 > ss, cartesian1 strtemp)
+{
+    int fl = 0;
+    for (int i = 0; i < ss.size (); i++) {
+        if (ss[i].parent1 == strtemp.parent1) {
+            if (ss[i].parent2 == strtemp.parent2) {
+
+                if ((ss[i].parent3.col == strtemp.parent3.col)
+                    && (ss[i].parent3.row == strtemp.parent3.row)
+                    && (ss[i].parent3.type == strtemp.parent3.type)) {
+                    if (ss[i].scoretemp == strtemp.scoretemp) {
+                        if (ss[i].str == strtemp.str)
+                            return 1;
+                    }
+                }
+
+            }
+        }
+
+    }
+    return (fl);
+}
+
+
+
 void FillRestCellProcess1 (const vector < CykMatrixCell > &mat, CykMatrixCell & cykmc, int i, int j)    //This function runs the defined Process-I for filling  the non-first-row matrix
 {
-    int maxk = i - 1;
+    int maxk = i - 1, x;
     int DwnListPos, UprListPos;
     string dummy;
     bool found;
     int dwnitr, upitr, itr2;
-
     for (int k = 1; k <= maxk; k++) {
+        int s = 0, x = 0;
+        vector < cartesian1 > ss;
         DwnListPos = AbsPos (k, j);
         UprListPos = AbsPos (i - k, j + k);
+        CykMatrixCell c1 = mat[DwnListPos];
+        CykMatrixCell c2 = mat[UprListPos];
+
 
         for (dwnitr = 0; dwnitr < mat[DwnListPos].DownList.size (); dwnitr++)   //Run through the entire DownList of the cell at DwnListPos
         {
@@ -334,96 +399,107 @@ void FillRestCellProcess1 (const vector < CykMatrixCell > &mat, CykMatrixCell & 
                 dummy =
                     mat[DwnListPos].DownList[dwnitr].ruleRHSpreDot +
                     mat[UprListPos].UpList[upitr].ruleLHS;
-                //Using the specific Upper List element and Lower List element we now fill the current cell
 
-                for (int x = 0; x < RuleList[0].RuleCount; x++) //Run through each rule
-                {
-                    if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS == dummy)  //If the non-terminal set we are looking for is directly given by a non-terminal in the RuleList
+                pair < multimap < string, int >::const_iterator,
+                    multimap < string, int >::const_iterator > p =
+                    NTmap.equal_range (dummy);
+                for (multimap < string, int >::const_iterator i1 = p.first;
+                     i1 != p.second; ++i1) {
+
+                    x = int ((*i1).second) - 1;
+                    CykListElement tempcle;
+                    tempcle.ruleLHS = RuleList[x].ruleLHS;
+                    tempcle.ruleRHSpreDot = dummy;
+                    tempcle.ruleRHSpostDot = "\0";      //Since this non-terminal set is given directly
+
+                    tempcle.score =
+                        RuleList[x].RuleScore *
+                        mat[UprListPos].UpList[upitr].score;
+                    RuleList[x].SetUsedOnceFlag ();
+                    tempcle.coordinates.row = i;
+                    tempcle.coordinates.col = j;
+                    tempcle.coordinates.index = cykmc.UpList.size ();
+                    tempcle.coordinates.type = _UPLIST;
+                    tempcle.Parents =
+                        make_parent (mat[DwnListPos].DownList[dwnitr]);
+
+                    tempcle.s1 =
+                        mat[UprListPos].UpList[upitr].coordinates.row;
+                    tempcle.s2 =
+                        mat[UprListPos].UpList[upitr].coordinates.col;
+                    tempcle.s3 = upitr;
+                    tempcle.flag = 2;
+                    if (mat[UprListPos].UpList[upitr].coordinates.row == 1)     //oss<<"&";//
+                        tempcle.flag = 3;
+
+                    found = false;
+                    for (itr2 = 0; itr2 < cykmc.UpList.size (); itr2++) //This loop checks if the CykList Element is not already present
                     {
-                        CykListElement tempcle;
-                        tempcle.ruleLHS = RuleList[x].ruleLHS;
-                        tempcle.ruleRHSpreDot = dummy;
-                        tempcle.ruleRHSpostDot = "\0";  //Since this non-terminal set is given directly
+                        if (cykmc.UpList[itr2] == tempcle) {
+                            found = true;
+                            break;
+                        } else
+                            found = false;
+                    }
 
-                        tempcle.score =
-                            RuleList[x].RuleScore *
-                            mat[UprListPos].UpList[upitr].score;
-                        RuleList[x].SetUsedOnceFlag ();
-                        tempcle.coordinates.row = i;
-                        tempcle.coordinates.col = j;
-                        tempcle.coordinates.index = cykmc.UpList.size ();
-                        tempcle.coordinates.type = _UPLIST;
-                        tempcle.Parents =
-                            mat[DwnListPos].DownList[dwnitr].Parents;
-                        ostringstream oss;
-                        oss << "*" << mat[UprListPos].UpList[upitr].
-                            coordinates.row << " " << mat[UprListPos].
-                            UpList[upitr].coordinates.col << " " << upitr;
-                        if (mat[UprListPos].UpList[upitr].coordinates.row ==
-                            1)
-                            oss << "&";
-                        oss << "*";
-                        tempcle.Parents += oss.str ();
-
-                        found = false;
-                        for (itr2 = 0; itr2 < cykmc.UpList.size (); itr2++)     //This loop checks if the CykList Element is not already present
-                        {
-                            if (cykmc.UpList[itr2] == tempcle) {
-                                found = true;
-                                break;
-                            } else
-                                found = false;
-                        }
-
-                        if (!found)     //If the CykList Element is not already prsent
-                        {
-                            cykmc.UpList.push_back (tempcle);
-                            ++(cykmc.UpListCount);
-                        }
-                    } else if (RuleList[x].RuleType == _NONTERM_RULE && RuleList[x].ruleRHS.find (dummy) == 0)  //The non-terminal set we are looking for is NOT directly given by a non-terminal in the RuleList, but is the first non-terminal set on RHS
+                    if (!found) //If the CykList Element is not already prsent
                     {
-                        CykListElement tempcle;
-                        tempcle.ruleLHS = RuleList[x].ruleLHS;
-                        tempcle.ruleRHSpreDot = dummy;
-                        tempcle.ruleRHSpostDot = RuleList[x].ruleRHS.substr (dummy.length ());  //Since this non-terminal set is NOT given directly
+                        cykmc.UpList.push_back (tempcle);
+                        ++(cykmc.UpListCount);
+                    }
+                }
+/*EXPLAINING RULE SEARCH
+-We here check to see if the combination in 'dummy' is the the one an RHS begins with, in any rule
+- If it is present, we need to add an element in the lower list
+*/
 
-                        tempcle.score =
-                            RuleList[x].RuleScore *
-                            mat[UprListPos].UpList[upitr].score;
-                        RuleList[x].SetUsedOnceFlag ();
-                        tempcle.coordinates.row = i;
-                        tempcle.coordinates.col = j;
-                        tempcle.coordinates.index = cykmc.DownList.size ();
-                        tempcle.coordinates.type = _DOWNLIST;
-                        tempcle.Parents =
-                            mat[DwnListPos].DownList[dwnitr].Parents;
-                        ostringstream oss;
-                        oss << "*" << mat[UprListPos].UpList[upitr].
-                            coordinates.row << " " << mat[UprListPos].
-                            UpList[upitr].coordinates.col << " " << upitr;
-                        if (mat[UprListPos].UpList[upitr].coordinates.row ==
-                            1)
-                            oss << "&";
-                        oss << "*";
-                        tempcle.Parents += oss.str ();
+                pair < multimap < string, int >::const_iterator,
+                    multimap < string, int >::const_iterator > q =
+                    NTmapfirst.equal_range (dummy);
+                for (multimap < string, int >::const_iterator j1 = q.first;
+                     j1 != q.second; ++j1) {
+                    x = (*j1).second - 1;
+                    CykListElement tempcle;
+                    tempcle.ruleLHS = RuleList[x].ruleLHS;
+                    tempcle.ruleRHSpreDot = dummy;
+                    tempcle.ruleRHSpostDot = RuleList[x].ruleRHS.substr (dummy.length ());      //Since this non-terminal set is NOT given directly
 
-                        found = false;
-                        for (itr2 = 0; itr2 < cykmc.DownList.size (); itr2++)   //This loop checks if the CykList Element is not already present
-                        {
-                            if (cykmc.DownList[itr2] == tempcle) {
-                                found = true;
-                                break;
-                            } else
-                                found = false;
-                        }
+                    tempcle.score =
+                        RuleList[x].RuleScore *
+                        mat[UprListPos].UpList[upitr].score;
+                    RuleList[x].SetUsedOnceFlag ();
+                    tempcle.coordinates.row = i;
+                    tempcle.coordinates.col = j;
+                    tempcle.coordinates.index = cykmc.DownList.size ();
+                    tempcle.coordinates.type = _DOWNLIST;
+                    tempcle.Parents =
+                        make_parent (mat[DwnListPos].DownList[dwnitr]);
+                    tempcle.s1 =
+                        mat[UprListPos].UpList[upitr].coordinates.row;
+                    tempcle.s2 =
+                        mat[UprListPos].UpList[upitr].coordinates.col;
+                    tempcle.s3 = upitr;
+                    tempcle.flag = 2;
+                    if (mat[UprListPos].UpList[upitr].coordinates.row == 1)     //oss<<"&";//
+                        tempcle.flag = 3;
 
-                        if (!found)     //If the CykList Element is not already prsent
-                        {
-                            cykmc.DownList.push_back (tempcle);
-                            ++(cykmc.DownListCount);
-                        }
-                    }           //End- if else
-                }               //End- Run through each rule
+                    found = false;
+                    for (itr2 = 0; itr2 < cykmc.DownList.size (); itr2++)       //This loop checks if the CykList Element is not already present
+                    {
+                        if (cykmc.DownList[itr2] == tempcle) {
+                            found = true;
+                            break;
+                        } else
+                            found = false;
+                    }
+
+                    if (!found) //If the CykList Element is not already prsent
+                    {
+                        cykmc.DownList.push_back (tempcle);
+                        ++(cykmc.DownListCount);
+                    }
+                }
+                //}       
             }                   //End- Run through the entire UpList of the UprListPos
         }                       //End- Run through the entire DownList of the DwnListPos
 
@@ -433,7 +509,8 @@ void FillRestCellProcess1 (const vector < CykMatrixCell > &mat, CykMatrixCell & 
 void FillRestCell (const vector < CykMatrixCell > &mat, CykMatrixCell & cykmc, int &row, int &col)      //This function accepts one CykMatrixCell and its position as row, column (all by reference) and calls Processes-I and II for filling  the non-first-row matrix
 {
     FillRestCellProcess1 (mat, cykmc, row, col);
-    while (FillRestCellProcess2 (mat, cykmc, row, col));
+//while (FillRestCellProcess2(mat,cykmc,row,col));
+    FillRestCellProcess2 (mat, cykmc, row, col);
 }                               //FillRestCell()- function ends
 
 void FillRestMatrix (vector < CykMatrixCell > &mat)     //This function accepts a reference to a vector of type CykMatrixCell
@@ -446,6 +523,7 @@ void FillRestMatrix (vector < CykMatrixCell > &mat)     //This function accepts 
     {
         for (int col = 1; col <= maxcol; col++) //Keep incrementing the column number
         {
+            cout << "for cell " << row << "  " << col << endl;
             CykMatrixCell tempcykcel;
             FillRestCell (mat, tempcykcel, row, col);
             mat.push_back (tempcykcel);
@@ -470,7 +548,6 @@ bool IsPossibleTree (const vector < CykMatrixCell > &UTM)
 
 //*************** Code for checking the Parse Tree Feasibility Ends *****************
 
-
 //******************** Code for Printing the Parse Tree Begins **********************
 ElementCoordinates GetCoordinates (string inp)  //This function splits up the sting-encoded coordinates into the structure 'ElementCoordinates' form
 {
@@ -486,12 +563,12 @@ ElementCoordinates GetCoordinates (string inp)  //This function splits up the st
 void TraceFurther (ElementCoordinates Pos, const vector < CykMatrixCell > &UTM, ostringstream & oss)    //This function traces one step of a matrix, prints it to oss, and recalls itself for following the rest of the tree
 {
     CykListElement temp = UTM[AbsPos (Pos.row, Pos.col)].UpList[Pos.index];
-
+    string tempParents;
     if (temp.ruleLHS.length () > 0) {
         oss << temp.ruleLHS.substr (1, temp.ruleLHS.length () - 2);     //This is to remove the leading and trailing '*' (stars)
         oss << " --> ";
-
-        string tempParents = temp.Parents;
+        tempParents = make_parent (temp);
+        //string tempParents=temp.Parents;
         while (tempParents.length () > 0) {
             string PosPart, tempstr;
             PosPart = tempParents.substr (1, tempParents.find ("*", 1) - 1);
@@ -514,7 +591,7 @@ void TraceFurther (ElementCoordinates Pos, const vector < CykMatrixCell > &UTM, 
         }                       //End- while
         oss << endl;
 
-        tempParents = temp.Parents;
+        tempParents = make_parent (temp);
         while (tempParents.length () > 0) {
             string PosPart, tempstr;
             PosPart = tempParents.substr (1, tempParents.find ("*", 1) - 1);
@@ -530,6 +607,7 @@ void TraceFurther (ElementCoordinates Pos, const vector < CykMatrixCell > &UTM, 
         }                       //End- while
     }                           //End- if
 }                               //End- TraceFurther()
+
 
 
 string BuildTrace (const vector < CykMatrixCell > &UTM) //This function determines the ROOT with highest score, and uses that UpList to trace back the tree by calling TraceFurther()
@@ -558,3 +636,5 @@ string BuildTrace (const vector < CykMatrixCell > &UTM) //This function determin
         return oss.str ();
     }
 }                               //End- BuildTrace()
+
+//********************* Code for Printing the Parse Tree Ends ***********************
