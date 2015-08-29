@@ -1,3 +1,12 @@
+//**********************************************************************************
+// File		: cykmatrix.h
+// Purpose	: Declaration of classes for creation of CYK Parser Matrix
+// Author	: Vipin Gupta (viping@gmail.com), Manish Kushwaha (manish.kushwaha@gmail.com)
+// Revision	: 1.0	-	20-Feb-2005	Initial Draft
+//		: 2.0	-	03-Jun-2005	Minor Unpdation for compatibility with the downstream code (Manish Kushwaha)
+//		: 3.0	-	14-Jun-2005	Minor Unpdation for compatibility with the downstream code (Manish Kushwaha)
+//**********************************************************************************
+
 #ifndef _CYK_MATRIX__H_
 #define _CYK_MATRIX__H_
 
