@@ -4,3 +4,4 @@ bin/Scores4mStruct
 src/*.o
 src/inside-outside/*.o
 temp/*
+src/*~
