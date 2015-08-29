@@ -2,7 +2,20 @@
 #define _CYK_MATRIX__H_
 
 
-#include "allincludes.h"
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <vector>
+#include <string>
+#include <string.h>
+#include <sstream>
+#include <algorithm>
+#include <map>
+
+using namespace std;
+
+#include "constants.h"
+
 
 
 enum TYPE_OF_LIST { _UNKNOWN = 0, _UPLIST = 1, _DOWNLIST = 2, _PARENTREF =3, _TERMRULE =4 };

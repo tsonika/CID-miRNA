@@ -10,7 +10,20 @@
 #ifndef _GRAMMAR__READER_H_
 #define _GRAMMAR__READER_H_
 
-#include "allincludes.h"
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <vector>
+#include <string>
+#include <string.h>
+#include <sstream>
+#include <algorithm>
+#include <map>
+
+using namespace std;
+
+#include "constants.h"
+
 #include "cykmatrix.h"
 
 enum TYPE_OF_RULE { _UNKNOWN_RULE = 0, _TERM_RULE = 1, _NONTERM_RULE = 2 };
