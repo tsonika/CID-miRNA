@@ -19,10 +19,4 @@ using namespace std;
 #define MAXRULENAMELEN 100
 // This is the longest name a rule can have
 
-static void myexit(int exitcode)
-{
-	cin.get();
-	exit(exitcode);
-}
-
 #endif

@@ -59,7 +59,7 @@ void SCFGrule::CountUpdate(void)
 	{
 		cout << endl << "Lowercase Symbol on LHS : " << ruleLHS 
 			 << " at Rule No. " << RuleNumber << endl;
-		myexit(1);
+		exit(1);
 	}
 
     ruleLHS = dummy;
@@ -97,7 +97,7 @@ void SCFGrule::CountUpdate(void)
 			{
 				cout << endl << "Lowercase Symbol on RHS : " << ruleRHS 
 					 << " at Rule No. " << RuleNumber << endl;
-				myexit(1);
+				exit(1);
 			}
 			else 
 			{
@@ -199,7 +199,7 @@ vector<SCFGrule> TempRuleList;
 		if(grammarfileptr == NULL)
 		{
 			cout << endl << "Unable to Read or Allocate memory for reading Grammar File" << endl;
-			myexit(1);
+			exit(1);
 		}
 		char filename[MAXPATH+1];
 		cout << endl << "\n Enter Name of Grammar File : ";
@@ -208,7 +208,7 @@ vector<SCFGrule> TempRuleList;
 		if(!grammarfileptr->good())
 		{
 			cout << endl << "Unable to Read Grammar File : " << filename << endl;
-			myexit(1);
+			exit(1);
 		}
 	}
 
@@ -231,7 +231,7 @@ vector<SCFGrule> TempRuleList;
 		{
 			cout << "\n Error Reading score in rule !!\n"
 				 << temprule;
-			myexit(1);
+			exit(1);
 		}
 
 		rule = iss.str();
@@ -248,7 +248,7 @@ vector<SCFGrule> TempRuleList;
 		{
 			cout << "\n Error Reading --> in rule !!\n"
 				 << temprule;
-			myexit(1);
+			exit(1);
 		}
 		
 		string tempLHS, tempRHS;
@@ -283,7 +283,7 @@ vector<SCFGrule> TempRuleList;
 	if(!SCFGrule::ValidateGrammar())
 	{
 		cout << "\n Error in Grammar.\n";
-		myexit(1);
+		exit(1);
 	}
 return (TempRuleList);
 }
