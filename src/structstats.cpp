@@ -1,14 +1,14 @@
 //**********************************************************************************
-// File		: structstats.cpp										
-// Purpose	: Definition of functions for reading and storing of MiRNA General SCFG	
-// Authors	: Vipin Gupta (viping@gmail.com), Manish Kushwaha (manish.kushwaha@gmail.com)
-// Revision	:1.0	-	26-Feb-2005	Initial Draft (Vipin Gupta)			
-//		:2.0	-	10-Mar-2005	Grammar Reading and Error Handling perfected (Vipin Gupta)
-//		:3.0	-	03-Jun-2005	Minor Upgrade in Grammer Reading and Validation functions,
-//						Filling the first row of a CYK Upper Triangular Matrix (Manish Kushwaha)
-//		:4.0	-	14-Jun-2005	Filling the rest of the rows of the CYK Upper Triangular Matrix and Tracing it to print a human-readable tree (Manish Kushwaha)
-//		:5.0	-	15-Jun-2005	Included 'drawmirna.h' functionality to display graphical output
-//		:5.5	-	25-Jun-2005	Removed the bias in asymmetric bulge display
+// File         : structstats.cpp                                                                               
+// Purpose      : Definition of functions for reading and storing of MiRNA General SCFG 
+// Authors      : Vipin Gupta (viping@gmail.com), Manish Kushwaha (manish.kushwaha@gmail.com)
+// Revision     :1.0    -       26-Feb-2005     Initial Draft (Vipin Gupta)                     
+//              :2.0    -       10-Mar-2005     Grammar Reading and Error Handling perfected (Vipin Gupta)
+//              :3.0    -       03-Jun-2005     Minor Upgrade in Grammer Reading and Validation functions,
+//                                              Filling the first row of a CYK Upper Triangular Matrix (Manish Kushwaha)
+//              :4.0    -       14-Jun-2005     Filling the rest of the rows of the CYK Upper Triangular Matrix and Tracing it to print a human-readable tree (Manish Kushwaha)
+//              :5.0    -       15-Jun-2005     Included 'drawmirna.h' functionality to display graphical output
+//              :5.5    -       25-Jun-2005     Removed the bias in asymmetric bulge display
 //              :6.0    -       25-Jun-2005     Return statistics of a given structure
 //**********************************************************************************
 
@@ -22,170 +22,160 @@
 //********************* Code for Printing the Parse Tree Ends ***********************
 
 //************************ Code for Building nodes Begins ***************************
-node* BuildNodes(string &trace)
+node *BuildNodes (string & trace)
 {
-node *finaltree= new node;
-finaltree->initialize(ROOT);
-node *currnode=finaltree;
-node *a;
-istringstream iss(trace);
-string currline,onlynode;
-int findpos;
-bool LoopOccured=false;
+    node *finaltree = new node;
+    finaltree->initialize (ROOT);
+    node *currnode = finaltree;
+    node *a;
+    istringstream iss (trace);
+    string currline, onlynode;
+    int findpos;
+    bool LoopOccured = false;
 
-while (!iss.eof() && !LoopOccured)
-      {
-      getline(iss,currline);
-      if (currline.length() == 0) continue;
-      a=new node;
+    while (!iss.eof () && !LoopOccured) {
+        getline (iss, currline);
+        if (currline.length () == 0)
+            continue;
+        a = new node;
 
-      onlynode=currline.substr(currline.find("-->")+4);
+        onlynode = currline.substr (currline.find ("-->") + 4);
 
-      findpos=onlynode.find("STEM");
-      if (findpos != string::npos)
-         {//Make node for STEM
-         a->initialize(STEM);
-         stem *qstem=new stem;
-         qstem->l=onlynode[0];
+        findpos = onlynode.find ("STEM");
+        if (findpos != string::npos) {  //Make node for STEM
+            a->initialize (STEM);
+            stem *qstem = new stem;
+            qstem->l = onlynode[0];
 
-         findpos=onlynode.find(" ",findpos);
-         qstem->r=onlynode[findpos+1];
-         a->storedata(qstem);
-         onlynode="";
-         }//End- STEM
+            findpos = onlynode.find (" ", findpos);
+            qstem->r = onlynode[findpos + 1];
+            a->storedata (qstem);
+            onlynode = "";
+        }                       //End- STEM
 
-      findpos=onlynode.find("ASYM");
-      if (findpos != string::npos)
-         {//Make node for ASYM
-         a->initialize(ASYM);
-         asym *qasym=new asym;
-         qasym->l=onlynode.substr(0,findpos);
+        findpos = onlynode.find ("ASYM");
+        if (findpos != string::npos) {  //Make node for ASYM
+            a->initialize (ASYM);
+            asym *qasym = new asym;
+            qasym->l = onlynode.substr (0, findpos);
 
-         findpos=onlynode.find(" ",findpos);
-         qasym->r=onlynode.substr(findpos+1);
-         
-         findpos=(qasym->l).find(" ");
-         while (findpos != string::npos)
-               {
-               (qasym->l).erase(findpos,1);
-               findpos=(qasym->l).find(" ");
-               }
+            findpos = onlynode.find (" ", findpos);
+            qasym->r = onlynode.substr (findpos + 1);
 
-         findpos=(qasym->r).find(" ");
-         while (findpos != string::npos)
-               {
-               (qasym->r).erase(findpos,1);
-               findpos=(qasym->r).find(" ");
-               }
+            findpos = (qasym->l).find (" ");
+            while (findpos != string::npos) {
+                (qasym->l).erase (findpos, 1);
+                findpos = (qasym->l).find (" ");
+            }
 
-         a->storedata(qasym);
-         onlynode="";
-         }//End- ASYM
+            findpos = (qasym->r).find (" ");
+            while (findpos != string::npos) {
+                (qasym->r).erase (findpos, 1);
+                findpos = (qasym->r).find (" ");
+            }
 
-      findpos=onlynode.find("SYM");
-      if (findpos != string::npos)
-         {//Make node for SYM
-         a->initialize(SYM);
-         sym *qsym=new sym;
-         qsym->l=onlynode.substr(0,findpos);
+            a->storedata (qasym);
+            onlynode = "";
+        }                       //End- ASYM
 
-         findpos=onlynode.find(" ",findpos);
-         qsym->r=onlynode.substr(findpos+1);
-         
-         findpos=(qsym->l).find(" ");
-         while (findpos != string::npos)
-               {
-               (qsym->l).erase(findpos,1);
-               findpos=(qsym->l).find(" ");
-               }
+        findpos = onlynode.find ("SYM");
+        if (findpos != string::npos) {  //Make node for SYM
+            a->initialize (SYM);
+            sym *qsym = new sym;
+            qsym->l = onlynode.substr (0, findpos);
 
-         findpos=(qsym->r).find(" ");
-         while (findpos != string::npos)
-               {
-               (qsym->r).erase(findpos,1);
-               findpos=(qsym->r).find(" ");
-               }
+            findpos = onlynode.find (" ", findpos);
+            qsym->r = onlynode.substr (findpos + 1);
 
-         a->storedata(qsym);
-         onlynode="";
-         }//End- SYM
+            findpos = (qsym->l).find (" ");
+            while (findpos != string::npos) {
+                (qsym->l).erase (findpos, 1);
+                findpos = (qsym->l).find (" ");
+            }
 
-      while (isspace(onlynode[0]))  onlynode.erase(0,1);//Remove all leading spaces
+            findpos = (qsym->r).find (" ");
+            while (findpos != string::npos) {
+                (qsym->r).erase (findpos, 1);
+                findpos = (qsym->r).find (" ");
+            }
 
-      findpos=onlynode.find("LOOP");
-      if (findpos != string::npos && findpos>0)
-         {//Make node for LOOP, if this point is like the STEM
-         a->initialize(STEM);
-         stem *qstem=new stem;
-         qstem->l=onlynode[0];
-                                                                                                                                                                 
-         findpos=onlynode.find(" ",findpos);
-         qstem->r=onlynode[findpos+1];
-         a->storedata(qstem);
+            a->storedata (qsym);
+            onlynode = "";
+        }                       //End- SYM
 
-         //This portion fills in this special point into the node tree
-         if (currnode == finaltree)
-            finaltree->storep(a);
-         else
-            currnode->storep(a);
-         currnode=a;
-         a=new node;
-         }//End- LOOP, like the STEM
+        while (isspace (onlynode[0]))
+            onlynode.erase (0, 1);      //Remove all leading spaces
 
-      findpos=onlynode.find("LOOP");
-      if (findpos != string::npos)
-         {//Make node for LOOP, if this point has the LOOP string
-         a->initialize(LOOP);
-         loop *qloop=new loop;
-         string qloops;
-         getline(iss,qloops);
-         qloops=qloops.substr(qloops.find("-->")+4);
-         qloop->s=qloops;
+        findpos = onlynode.find ("LOOP");
+        if (findpos != string::npos && findpos > 0) {   //Make node for LOOP, if this point is like the STEM
+            a->initialize (STEM);
+            stem *qstem = new stem;
+            qstem->l = onlynode[0];
 
-         findpos=(qloop->s).find(" ");
-         while (findpos != string::npos)
-               {
-               (qloop->s).erase(findpos,1);
-               findpos=(qloop->s).find(" ");
-               }
-         a->storedata(qloop);
-         LoopOccured=true;
-         }//End- LOOP
+            findpos = onlynode.find (" ", findpos);
+            qstem->r = onlynode[findpos + 1];
+            a->storedata (qstem);
 
-      //Now 'a' has the current node
-      if (currnode == finaltree)
-         finaltree->storep(a);
-      else
-         currnode->storep(a);
+            //This portion fills in this special point into the node tree
+            if (currnode == finaltree)
+                finaltree->storep (a);
+            else
+                currnode->storep (a);
+            currnode = a;
+            a = new node;
+        }                       //End- LOOP, like the STEM
 
-      currnode=a;
-      }//End- while()
+        findpos = onlynode.find ("LOOP");
+        if (findpos != string::npos) {  //Make node for LOOP, if this point has the LOOP string
+            a->initialize (LOOP);
+            loop *qloop = new loop;
+            string qloops;
+            getline (iss, qloops);
+            qloops = qloops.substr (qloops.find ("-->") + 4);
+            qloop->s = qloops;
 
-return finaltree;
+            findpos = (qloop->s).find (" ");
+            while (findpos != string::npos) {
+                (qloop->s).erase (findpos, 1);
+                findpos = (qloop->s).find (" ");
+            }
+            a->storedata (qloop);
+            LoopOccured = true;
+        }                       //End- LOOP
+
+        //Now 'a' has the current node
+        if (currnode == finaltree)
+            finaltree->storep (a);
+        else
+            currnode->storep (a);
+
+        currnode = a;
+    }                           //End- while()
+
+    return finaltree;
 }
 
 //************************* Code for Building nodes Ends ****************************
-int main(int argc, char *argv[])
+int main (int argc, char *argv[])
 {
 //Recieve input from command line
-if (argc < 3)
-   {
-   cout<<"ERROR!! Insufficient arguments.\n";
-   cout<<"Usage Format:\n";
-   cout<<"<Program Name> <Grammar File Name> <Sequence to Parse>\n";
-   exit(1);
-   }
+    if (argc < 3) {
+        cout << "ERROR!! Insufficient arguments.\n";
+        cout << "Usage Format:\n";
+        cout << "<Program Name> <Grammar File Name> <Sequence to Parse>\n";
+        exit (1);
+    }
 
-char *GFileName=argv[1];
-Sequence = argv[2];
+    char *GFileName = argv[1];
+    Sequence = argv[2];
 
 //Read Grammar from file into the vector RuleList
-ifstream * gfile;
-gfile= new ifstream;
-gfile->open(GFileName, ios::in);
-RuleList=ReadGrammarFile(gfile);
-gfile->close();
-delete gfile;
+    ifstream *gfile;
+    gfile = new ifstream;
+    gfile->open (GFileName, ios::in);
+    RuleList = ReadGrammarFile (gfile);
+    gfile->close ();
+    delete gfile;
 
 //The following portion of the program displays the grammer as read from the file
 //A sample output can be seen in RuleReference.txt (Grammar file used was 'result.txt')
@@ -213,10 +203,10 @@ for (int x=0;x<RuleList[0].RuleCount;x++)
 
 
 //Make the matrix as a vector
-SeqLen=Sequence.length();
-vector<CykMatrixCell> UTMatrix;
-FillFirstRow(UTMatrix);
-FillRestMatrix(UTMatrix);
+    SeqLen = Sequence.length ();
+    vector < CykMatrixCell > UTMatrix;
+    FillFirstRow (UTMatrix);
+    FillRestMatrix (UTMatrix);
 
 //The following portion of the program displays the results of the filled Matrix
 //A sample output can be seen in MatrixRef.txt (Grammar file used: smade02.txt, sequence 'aauggau')
@@ -265,40 +255,40 @@ for (abspos=0;abspos < UTMatrix.size(); abspos++)
     }//End- Printing of Filled Matrix*/
 
 //Checking if the input sequence can be parsed using the grammar, and printing the tree if it can be parsed through the grammar
-if (IsPossibleTree(UTMatrix))
-   {
-   cout<<"\nThe sequence CAN be parsed using the grammar!!\n\n";
-   string trace;
-   trace=BuildTrace(UTMatrix);//'trace' contains the output stream for the BuildTrace(); This is the same as the output seen on screen in the previous version
-   cout<<trace;
+    if (IsPossibleTree (UTMatrix)) {
+        cout << "\nThe sequence CAN be parsed using the grammar!!\n\n";
+        string trace;
+        trace = BuildTrace (UTMatrix);  //'trace' contains the output stream for the BuildTrace(); This is the same as the output seen on screen in the previous version
+        cout << trace;
 
-   node *RootNode= new node;//Create a new node
-   RootNode = BuildNodes(trace);//Calling local function BuildNodes() to build the nodes that can be recognised by the fillmatrix() code of 'drawmirna.h'
+        node *RootNode = new node;      //Create a new node
+        RootNode = BuildNodes (trace);  //Calling local function BuildNodes() to build the nodes that can be recognised by the fillmatrix() code of 'drawmirna.h'
 
-   initmatrix();
-   fillmatrix(RootNode,0);
+        initmatrix ();
+        fillmatrix (RootNode, 0);
 
-   string miRNAstruct;
-   miRNAstruct=returnmatrix();
-   cout<<miRNAstruct;
-                                                                                                                  
-   miRNAstats structstats;
-   structstats=getstats(miRNAstruct);
-                                                                                                                  
-   cout<<"Stats for the above structure:\n";
-   cout<<"Total number of Continuous Stems :"<<structstats.n_stems;
-   cout<<"\nTotal number of Asymmetric Bulges :"<<structstats.n_asyms;
-   cout<<"\nTotal number of Symmetric Bulges :"<<structstats.n_syms;
-   cout<<"\nTotal number of Bases :"<<structstats.n_bases;
-   cout<<"\nTotal number of Base Pairs :"<<structstats.n_base_pairs;
-   cout<<"\nTotal number of Bases in Loop :"<<structstats.n_loop_bases<<"\n\n";
+        string miRNAstruct;
+        miRNAstruct = returnmatrix ();
+        cout << miRNAstruct;
+
+        miRNAstats structstats;
+        structstats = getstats (miRNAstruct);
+
+        cout << "Stats for the above structure:\n";
+        cout << "Total number of Continuous Stems :" << structstats.n_stems;
+        cout << "\nTotal number of Asymmetric Bulges :" << structstats.
+            n_asyms;
+        cout << "\nTotal number of Symmetric Bulges :" << structstats.n_syms;
+        cout << "\nTotal number of Bases :" << structstats.n_bases;
+        cout << "\nTotal number of Base Pairs :" << structstats.n_base_pairs;
+        cout << "\nTotal number of Bases in Loop :" << structstats.
+            n_loop_bases << "\n\n";
 
 
 
 //   displaymatrix();
-   }
-   else
-   cout<<"\n\nThe sequence CANNOT be parsed using the grammar!!\n\n";
+    } else
+        cout << "\n\nThe sequence CANNOT be parsed using the grammar!!\n\n";
 
-return 0;
+    return 0;
 }
