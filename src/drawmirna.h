@@ -10,7 +10,19 @@
 #ifndef _DRAW__MIRNA_H_
 #define _DRAW__MIRNA_H_
 
-#include "allincludes.h"
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <vector>
+#include <string>
+#include <string.h>
+#include <sstream>
+#include <algorithm>
+#include <map>
+
+using namespace std;
+
+#include "constants.h"
 
 enum TYPE_OF_NODE
 { ROOT = 0, STEM = 1, SYM = 2, ASYM = 3, LOOP = 4 };

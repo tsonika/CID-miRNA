@@ -1,17 +1,6 @@
-#ifndef _ALL_INCLUDES__H_
-#define _ALL_INCLUDES__H_
+#ifndef _CONSTANTS__H_
+#define _CONSTANTS__H_
 
-#include <fstream>
-#include <iostream>
-#include <list>
-#include <vector>
-#include <string>
-#include <string.h>
-#include <sstream>
-#include <algorithm>
-#include <map>
-
-using namespace std;
 
 #define MINUSINF -1e90
 #define MAXPATH 1000
