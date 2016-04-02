@@ -70,9 +70,13 @@ def extractSequences(file):
     # find out if it's fasta or fastq or something else
 
     first_lines = []
+
+    # grab two lines with content
     try:
-        first_lines.append(next(file))
-        first_lines.append(next(file))
+        while len(first_lines) < 2:
+            line = next(file)
+            if line.strip():
+                first_lines.append(line)
     except StopIteration:
         # we didn't even get to two
         pass
