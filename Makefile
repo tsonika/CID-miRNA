@@ -10,8 +10,9 @@ bin/scoresequence: src/scoresequence.o
 bin/cutoffpassscore: src/cutoffpassscore.o
 	$(CXX) $(CXXFLAGS) $< -o $@	
 
-bin/Scores4mStruct: src/Scores4mStruct.o src/drawmirna.h
-	$(CXX) $(CXXFLAGS) $< -o $@	
+bin/Scores4mStruct: src/Scores4mStruct.o src/mirnastats.h src/mirnastats.o
+	$(CXX) $(CXXFLAGS) $< src/mirnastats.o -o $@	
+
 
 
 

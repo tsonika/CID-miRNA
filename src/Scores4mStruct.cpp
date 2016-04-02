@@ -4,9 +4,22 @@
 // Author       : Manish Kushwaha (manish.kushwaha@gmail.com)
 // Revision     : 1.0   -       25-Jun-2005     Working  (Manish Kushwaha)                      
 //**********************************************************************************
+#include <fstream>
+#include <iostream>
+#include <list>
+#include <vector>
+
+#include <sstream>
+#include <stdlib.h>
+
+
+#include "constants.h"
+#include "mirnastats.h"
+
+using namespace std;
 
 char matrix[5][81];             //This matrix represents the screen of 5x80 (Height x Width) characters
-#include "drawmirna.h"
+
 
 int main (int argc, char *argv[])
 {

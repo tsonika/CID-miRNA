@@ -239,7 +239,7 @@ void initial_value_reader(const char* input_probability_filename)
 
     if(!inprobfile.good())
     {
-        cerr << "\n Error Opening Input Probability File !! \n";
+        cerr << endl << "Error opening input probability file" << endl;
         exit(1);
     }
 
@@ -292,7 +292,7 @@ void initial_value_reader(const char* input_probability_filename)
 
         else if(!inprobfile.eof())
         {
-            cerr << "\n Unable to parse Input Probability File" << "\n Check the Format";
+            cerr << endl << "Unable to parse input probability file" << endl << "Check the format";
             inprobfile.close();
             exit(1);
         }
@@ -320,7 +320,7 @@ int main(int argc, char* argv[])
 
 
     if(argc < 4) { 
-        cerr  << endl << "INSUFFICIENT ARGMENTS" << endl
+        cerr  << endl << "Insufficient number of arguments" << endl
             << "Format is : Program <input sequence file> <input prob. file> <output result file> "
             << endl;
         return 1;
@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
 
     if(!resultfile.good())
     {
-        cerr << endl << " ERROR OPENING RESULT FILE !! " << endl;
+        cerr << endl << " Error opening results fule" << endl;
         exit(1);
     }
 
@@ -360,7 +360,7 @@ int main(int argc, char* argv[])
     inseqfile.open(input_sequence_filename);
     if(!inseqfile.good())
     {
-        cerr << "\n Error Opening Input Sequence File !! \n";
+        cerr << endl << "Error opening input sequence file" << endl;
         exit(1);
     }
 
