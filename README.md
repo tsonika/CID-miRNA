@@ -32,7 +32,7 @@ sequence is submitted all the Ts are converted to Us and processed.
 ###Running
 
 Run 'make' before running the program the first time to compile cutoffpassscore
-and Scores4mStruct
+and scorestructure
 
 
 You can get a complete list of options and defaults by running:

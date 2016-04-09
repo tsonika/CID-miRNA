@@ -50,7 +50,7 @@ DefaultProbabilitiesFilename = "CFGprobabilities.txt"
 #               - Input filename with the Rfold structures              N
 #
 #
-# [5] Scores4mStruct
+# [5] scorestructure
 #               - Input filename with the drawn structures              N
 #               - Output filename for storing the scores                N
 #
@@ -920,9 +920,9 @@ def main(args):
         return 1
 
 
-    scores_filename = Configuration.runCommand('Scores4mStruct', diagram_filename, [], 'scores', continuing=parameters.continuing)
+    scores_filename = Configuration.runCommand('scorestructure', diagram_filename, [], 'scores', continuing=parameters.continuing)
     if not scores_filename:
-        logging.error("Problems running Scores4mStruct on %s" % diagram_filename)
+        logging.error("Problems running scorestructure on %s" % diagram_filename)
         return 1
 
 
