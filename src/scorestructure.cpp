@@ -1,13 +1,12 @@
 //**********************************************************************************
-// File         : Stats4mStruct.cpp                                                                             
-// Purpose      : Reading an miRNA structure file and outputting the characteristics of the structure in terms of some handy structural details 
+// File         : scorestructure.cpp
+// Purpose      : Score a miRNA structure file
 // Author       : Manish Kushwaha (manish.kushwaha@gmail.com)
-// Revision     : 1.0   -       25-Jun-2005     Working  (Manish Kushwaha)                      
+// Revision     : 1.0   -       25-Jun-2005     Working  (Manish Kushwaha)   
+// Revision     : 2.0   -       10-Apr-2016     Alex Dubrovsky
 //**********************************************************************************
 #include <fstream>
 #include <iostream>
-#include <list>
-#include <vector>
 
 #include <sstream>
 #include <stdlib.h>
