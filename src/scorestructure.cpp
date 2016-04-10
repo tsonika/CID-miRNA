@@ -18,9 +18,6 @@
 
 using namespace std;
 
-char matrix[5][81];             //This matrix represents the screen of 5x80 (Height x Width) characters
-
-
 double score_mirna(string& miRNAstruct) {
     miRNAstats structstats = getstats (miRNAstruct);
     double structscore = 0;
